@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A Game of Blocks — Act I</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Georgia, 'Times New Roman', serif; }
+  canvas { display: block; }
+
+  .panel {
+    background: rgba(22, 17, 12, 0.88);
+    border: 1px solid #b08d40;
+    border-radius: 4px;
+    color: #e8dcc0;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  }
+
+  /* ---- Title screen ---- */
+  #title {
+    position: fixed; inset: 0; z-index: 50;
+    background: radial-gradient(ellipse at center, #2a2118 0%, #0d0a06 80%);
+    background-size: cover; background-position: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #e8dcc0; text-align: center;
+  }
+  /* when title art is present, the artwork carries the title — anchor UI to the bottom */
+  #title.has-art h1, #title.has-art h2 { display: none; }
+  #title.has-art { justify-content: flex-end; padding-bottom: 4vh; }
+  #title.has-art p, #title.has-art .controls-hint {
+    background: rgba(8, 5, 3, 0.62); border: 1px solid rgba(176, 141, 64, 0.45);
+    border-radius: 5px; padding: 10px 18px; backdrop-filter: blur(2px);
+  }
+  #title.has-art p { margin: 10px 20px; }
+  #title.has-art .controls-hint { margin-top: 14px; }
+  #title.has-art button { box-shadow: 0 4px 24px rgba(0,0,0,0.8); background: rgba(58, 44, 24, 0.92); }
+  #title h1 { font-size: 56px; letter-spacing: 12px; color: #d4af37; text-shadow: 0 2px 12px rgba(0,0,0,0.9); font-weight: normal; }
+  #title h2 { font-size: 20px; letter-spacing: 6px; margin-top: 8px; color: #a89468; font-weight: normal; }
+  #title p  { max-width: 560px; margin: 28px 20px; line-height: 1.7; color: #c9bb98; font-size: 16px; font-style: italic; }
+  #title button {
+    font-family: inherit; font-size: 20px; letter-spacing: 3px;
+    padding: 14px 48px; margin-top: 12px; cursor: pointer;
+    background: #3a2c18; color: #e8dcc0; border: 1px solid #d4af37; border-radius: 3px;
+    transition: background 0.2s;
+  }
+  #title button:hover { background: #57431f; }
+  #title .controls-hint { font-size: 13px; color: #7a6c50; margin-top: 30px; font-style: normal; letter-spacing: 1px; }
+  #accountBox { margin-bottom: 18px; }
+  #accountLabel { font-size: 12px; letter-spacing: 3px; color: #a89468; margin-bottom: 8px; }
+  #accountName {
+    font-family: inherit; font-size: 17px; text-align: center; letter-spacing: 1px;
+    background: rgba(20, 15, 9, 0.85); color: #e8dcc0; border: 1px solid #6b5a35;
+    border-radius: 3px; padding: 9px 16px; width: 260px; outline: none;
+  }
+  #accountName:focus { border-color: #d4af37; }
+  #profileList { margin-top: 8px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .profile-chip {
+    font-size: 13px; padding: 5px 10px; border: 1px solid #6b5a35; border-radius: 3px;
+    background: rgba(30, 23, 14, 0.85); color: #c9bb98; cursor: pointer; letter-spacing: 0.5px;
+  }
+  .profile-chip:hover { border-color: #d4af37; color: #e8dcc0; }
+  .profile-chip .del { margin-left: 7px; opacity: 0.5; }
+  .profile-chip .del:hover { opacity: 1; color: #e06060; }
+  #title.has-art #accountBox {
+    background: rgba(8, 5, 3, 0.62); border: 1px solid rgba(176, 141, 64, 0.45);
+    border-radius: 5px; padding: 12px 18px;
+  }
+
+  /* ---- HUD ---- */
+  #hud { position: fixed; left: 16px; bottom: 16px; z-index: 10; width: 260px; padding: 12px 14px; display: none; }
+  .bar { height: 14px; background: #1a130c; border: 1px solid #6b5a35; border-radius: 2px; overflow: hidden; margin: 4px 0 8px; }
+  .bar > div { height: 100%; transition: width 0.15s; }
+  #hpFill { background: linear-gradient(#c0392b, #8e2417); width: 100%; }
+  #xpFill { background: linear-gradient(#d4af37, #9c7d22); width: 0%; }
+  .bar-label { font-size: 11px; letter-spacing: 1px; color: #a89468; text-transform: uppercase; }
+  #stats { position: fixed; left: 16px; top: 16px; z-index: 10; padding: 10px 14px; font-size: 14px; display: none; line-height: 1.8; }
+  #stats .title-line { color: #d4af37; font-size: 15px; }
+  #stats .stat { color: #c9bb98; }
+  #compass { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 10; padding: 6px 22px; font-size: 20px; letter-spacing: 2px; color: #d4af37; display: none; }
+
+  /* ---- Quest tracker ---- */
+  #tracker { position: fixed; right: 16px; top: 16px; z-index: 10; width: 290px; padding: 12px 14px; display: none; }
+  #tracker .qhead { color: #d4af37; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  #tracker .qtext { font-size: 15px; line-height: 1.5; }
+
+  /* ---- Dialogue ---- */
+  #dialogue {
+    position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%);
+    z-index: 30; width: 620px; max-width: 92vw; padding: 18px 22px; display: none;
+  }
+  #dlgName { color: #d4af37; font-size: 17px; letter-spacing: 1px; margin-bottom: 8px; }
+  #dlgText { font-size: 16px; line-height: 1.65; margin-bottom: 14px; }
+  #dlgOptions button {
+    display: block; width: 100%; text-align: left; font-family: inherit; font-size: 15px;
+    background: rgba(60, 46, 24, 0.6); color: #e8dcc0; border: 1px solid #6b5a35;
+    border-radius: 3px; padding: 9px 14px; margin-top: 6px; cursor: pointer;
+  }
+  #dlgOptions button:hover { background: rgba(90, 70, 36, 0.8); border-color: #d4af37; }
+
+  /* ---- Boss bar ---- */
+  #bossbar { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 10; width: 420px; padding: 8px 14px 12px; display: none; text-align: center; }
+  #bossName { color: #e8dcc0; font-size: 15px; letter-spacing: 2px; margin-bottom: 6px; }
+  #bossFill { background: linear-gradient(#7a1f8f, #4d1259); width: 100%; }
+
+  /* ---- Toasts ---- */
+  #toasts { position: fixed; top: 110px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+  .toast {
+    padding: 8px 26px; font-size: 16px; color: #f0e6c8; letter-spacing: 1px;
+    background: rgba(22, 17, 12, 0.85); border: 1px solid #b08d40; border-radius: 3px;
+    animation: toastfade 3s forwards;
+  }
+  .toast.gold { color: #ffd769; }
+  @keyframes toastfade { 0% { opacity: 0; transform: translateY(-8px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* ---- Crosshair / vignette ---- */
+  #crosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 5; color: rgba(255,255,255,0.75); font-size: 20px; display: none; pointer-events: none; }
+  #vignette { position: fixed; inset: 0; z-index: 15; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(160,10,10,0.55) 100%); opacity: 0; transition: opacity 0.4s; }
+  #interactHint { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); z-index: 10; font-size: 15px; color: #f0e6c8; text-shadow: 0 1px 4px #000; display: none; pointer-events: none; letter-spacing: 1px; }
+
+  /* ---- Overlays ---- */
+  .fullscreen-overlay {
+    position: fixed; inset: 0; z-index: 40; display: none;
+    flex-direction: column; align-items: center; justify-content: center; text-align: center;
+    background: rgba(8, 5, 3, 0.88); color: #e8dcc0;
+  }
+  .fullscreen-overlay h1 { font-size: 44px; letter-spacing: 8px; color: #d4af37; font-weight: normal; }
+  .fullscreen-overlay p { max-width: 540px; margin: 22px; line-height: 1.7; font-size: 17px; color: #c9bb98; }
+  .fullscreen-overlay button {
+    font-family: inherit; font-size: 17px; letter-spacing: 2px; padding: 12px 40px; cursor: pointer;
+    background: #3a2c18; color: #e8dcc0; border: 1px solid #d4af37; border-radius: 3px;
+  }
+  #deathScreen h1 { color: #b03030; }
+  #pauseHint { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); color: #e8dcc0; font-size: 20px; letter-spacing: 2px; }
+
+  #controlsBar {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 8;
+    font-size: 12px; color: rgba(230, 218, 185, 0.65); letter-spacing: 1px; display: none;
+    text-shadow: 0 1px 3px #000; pointer-events: none;
+  }
+
+  /* ---- Map ---- */
+  #tracker { cursor: pointer; }
+  #tracker:hover { border-color: #d4af37; }
+  #mapBtn {
+    position: fixed; right: 16px; bottom: 16px; z-index: 10; padding: 10px 18px;
+    font-size: 15px; letter-spacing: 1px; cursor: pointer; display: none; color: #e8dcc0;
+  }
+  #mapBtn:hover { border-color: #d4af37; background: rgba(50, 38, 20, 0.9); }
+  #mapOverlay {
+    position: fixed; inset: 0; z-index: 35; display: none;
+    align-items: center; justify-content: center; background: rgba(5, 3, 2, 0.7);
+  }
+  #mapPanel { padding: 14px 16px 12px; }
+  #mapHead { color: #d4af37; font-size: 16px; letter-spacing: 3px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  #mapClose { cursor: pointer; padding: 2px 10px; border: 1px solid #6b5a35; border-radius: 3px; font-size: 14px; }
+  #mapClose:hover { border-color: #d4af37; }
+  #mapWrap { position: relative; width: min(64vh, 520px); height: min(64vh, 520px); }
+  #mapCanvas { width: 100%; height: 100%; image-rendering: pixelated; border: 1px solid #6b5a35; border-radius: 2px; display: block; }
+  #mapMarkers { position: absolute; inset: 0; }
+  .map-label {
+    position: absolute; transform: translate(-50%, -50%); font-size: 12px; color: #f0e6c8;
+    text-shadow: 0 1px 3px #000, 0 0 6px #000; letter-spacing: 1px; pointer-events: none; white-space: nowrap;
+  }
+  #mapPlayer {
+    position: absolute; transform: translate(-50%, -50%); font-size: 16px; color: #fff;
+    text-shadow: 0 0 4px #000; pointer-events: none; line-height: 1;
+  }
+  #mapObjective {
+    position: absolute; transform: translate(-50%, -50%); width: 14px; height: 14px;
+    background: #ffd54a; border: 2px solid #fff8e0; border-radius: 50%; cursor: pointer;
+    box-shadow: 0 0 10px #ffd54a; animation: mappulse 1.4s infinite;
+  }
+  @keyframes mappulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.35); } }
+  #mapLegend { margin-top: 8px; font-size: 12px; color: #a89468; letter-spacing: 0.5px; }
+
+  /* ---- Mission panel ---- */
+  #missionPanel {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    z-index: 38; width: 480px; max-width: 90vw; padding: 18px 22px; display: none;
+  }
+  #missionTitle { color: #d4af37; font-size: 20px; letter-spacing: 2px; margin-bottom: 10px; }
+  #missionDesc { font-size: 15px; line-height: 1.65; color: #c9bb98; font-style: italic; margin-bottom: 12px; }
+  #missionObjective { font-size: 15px; line-height: 1.5; margin-bottom: 6px; }
+  #missionObjective b { color: #ffd54a; }
+  #missionDist { font-size: 13px; color: #a89468; margin-bottom: 14px; }
+  #missionPanel button {
+    font-family: inherit; font-size: 14px; letter-spacing: 1px; padding: 8px 20px; cursor: pointer;
+    background: #3a2c18; color: #e8dcc0; border: 1px solid #6b5a35; border-radius: 3px; margin-left: 8px;
+  }
+  #missionPanel button:hover { border-color: #d4af37; }
+</style>
+</head>
+<body>
+  <div id="title">
+    <h1>A GAME OF BLOCKS</h1>
+    <h2>ACT I — THE HEDGE KNIGHT OF MUDFORD KEEP</h2>
+    <p>Your father is dead, and his crumbling holdfast passes to you. The smallfolk whisper of wolves
+       in the northern woods and bandits on the roads. Winter is coming — but first, a lordship must be
+       earned. Rise from hedge knight to Lord of Mudford Keep.</p>
+    <div id="accountBox">
+      <div id="accountLabel">WHO RIDES FOR MUDFORD?</div>
+      <input id="accountName" maxlength="24" placeholder="Your name, ser" autocomplete="off">
+      <div id="profileList"></div>
+    </div>
+    <button id="beginBtn" disabled style="opacity:0.45;cursor:wait;">FORGING THE REALM&hellip;</button>
+    <div class="controls-hint">WASD move &nbsp;·&nbsp; 1/2/3 weapons &nbsp;·&nbsp; LMB attack &nbsp;·&nbsp; E talk / ride &nbsp;·&nbsp; H call horse &nbsp;·&nbsp; M map &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Shift sprint<br><br>Beware: the dead walk at night. Steel will not save you from the pale ones — dragonglass will.</div>
+  </div>
+
+  <div id="hud" class="panel">
+    <div class="bar-label">Health <span id="hpNum"></span></div>
+    <div class="bar"><div id="hpFill"></div></div>
+    <div class="bar-label">Experience — Level <span id="lvlNum">1</span></div>
+    <div class="bar"><div id="xpFill"></div></div>
+  </div>
+
+  <div id="stats" class="panel">
+    <div class="title-line" id="playerTitle">Ser, a Hedge Knight</div>
+    <div class="stat">🗡 <span id="weaponName">Sword</span> <span style="opacity:0.5">[1–5]</span></div>
+    <div class="stat">🩹 Bandages: <span id="bandNum">1</span> <span style="opacity:0.5">[Q]</span> · ⚕ Kits: <span id="kitNum">0</span> <span style="opacity:0.5">[F]</span></div>
+    <div class="stat">⚜ Gold: <span id="goldNum">0</span></div>
+    <div class="stat">🪵 Wood: <span id="woodNum">0</span></div>
+    <div class="stat" id="meatRow" style="display:none">🍖 Meat: <span id="meatNum">0</span></div>
+    <div class="stat">⚔ Damage: <span id="dmgNum">8</span></div>
+  </div>
+
+  <div id="compass" class="panel">N</div>
+
+  <div id="tracker" class="panel">
+    <div class="qhead">Quest</div>
+    <div class="qtext" id="questText"></div>
+  </div>
+
+  <div id="bossbar" class="panel">
+    <div id="bossName">BANDIT KING RORGE</div>
+    <div class="bar"><div id="bossFill"></div></div>
+  </div>
+
+  <div id="dialogue" class="panel">
+    <div id="dlgName"></div>
+    <div id="dlgText"></div>
+    <div id="dlgOptions"></div>
+  </div>
+
+  <div id="toasts"></div>
+  <div id="crosshair">+</div>
+  <div id="vignette"></div>
+  <div id="interactHint"></div>
+  <div id="controlsBar">WASD move · 1–5 weapons · Q bandage · F kit · LMB attack · RMB place · E talk/ride · H horse · M map · Space jump</div>
+
+  <div id="deathScreen" class="fullscreen-overlay">
+    <h1>YOU HAVE DIED</h1>
+    <p id="deathText">The ravens will carry word of your fall. You wake at Mudford Keep, lighter of purse.</p>
+  </div>
+
+  <div id="victory" class="fullscreen-overlay">
+    <h1 id="victoryTitle">LORD OF MUDFORD KEEP</h1>
+    <p id="victoryText"></p>
+    <button id="victoryBtn">CONTINUE RULING YOUR LANDS</button>
+  </div>
+
+  <div id="pauseHint"><div>— PAUSED — click to resume</div></div>
+
+  <div id="mapBtn" class="panel">🗺 Map <span style="opacity:0.6">[M]</span></div>
+
+  <div id="mapOverlay">
+    <div id="mapPanel" class="panel">
+      <div id="mapHead"><span>THE LANDS OF MUDFORD</span><span id="mapClose">✕ [M]</span></div>
+      <div id="mapWrap">
+        <canvas id="mapCanvas" width="192" height="192"></canvas>
+        <div id="mapMarkers">
+          <div id="mapObjective" title="Current mission — click for details"></div>
+          <div id="mapPlayer">➤</div>
+        </div>
+      </div>
+      <div id="mapLegend">White arrow: you &nbsp;·&nbsp; Gold beacon: current mission (click it for details)</div>
+    </div>
+  </div>
+
+  <div id="missionPanel" class="panel">
+    <div id="missionTitle"></div>
+    <div id="missionDesc"></div>
+    <div id="missionObjective"></div>
+    <div id="missionDist"></div>
+    <div style="text-align:right"><button id="missionMap">View Map</button><button id="missionClose">Close</button></div>
+  </div>
+
+  <script>
+    // Splash art (assets/title-bg.png) + loading art (assets/loading-bg.png).
+    // While the world generates, the loading art shows; once the button arms,
+    // the splash art takes over. Missing files fall back to the gradient.
+    (function () {
+      const t = document.getElementById('title');
+      const state = { splash: false, loading: false };
+      window.__applyTitleArt = function (ready) {
+        if (ready && state.splash) {
+          t.style.backgroundImage = "url('assets/title-bg.png')";
+          t.classList.add('has-art');
+        } else if (!ready && state.loading) {
+          t.style.backgroundImage = "url('assets/loading-bg.png')";
+          t.classList.add('has-art');
+        }
+      };
+      const splash = new Image();
+      splash.onload = function () { state.splash = true; if (window.__gameReady) window.__applyTitleArt(true); };
+      splash.src = 'assets/title-bg.png';
+      const loading = new Image();
+      loading.onload = function () { state.loading = true; if (!window.__gameReady) window.__applyTitleArt(false); };
+      loading.src = 'assets/loading-bg.png';
+    })();
+  </script>
+  <script>
+    // Surface load/runtime errors on the title screen instead of failing silently.
+    window.addEventListener('error', (e) => {
+      const btn = document.getElementById('beginBtn');
+      if (btn && !window.game) {
+        btn.textContent = 'LOAD ERROR — SEE BELOW';
+        let el = document.getElementById('loadErr');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'loadErr';
+          el.style.cssText = 'color:#e06060;font-size:13px;margin-top:14px;max-width:600px;';
+          btn.parentElement.appendChild(el);
+        }
+        el.textContent = (e.message || 'Script failed to load') + (e.filename ? ' — ' + e.filename : '');
+      }
+    }, true);
+  </script>
+  <script type="importmap">
+    { "imports": { "three": "./lib/three.module.js" } }
+  </script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
