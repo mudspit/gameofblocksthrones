@@ -330,6 +330,7 @@ game.onActComplete = () => {
 // Pointer lock with graceful fallback: some environments (embedded previews,
 // iframes) deny pointer lock — in that case we run with free-mouse look.
 let usingFallback = false;
+let lockEverWorked = false;
 function enableFallback() {
   if (usingFallback) return;
   usingFallback = true;
@@ -337,17 +338,26 @@ function enableFallback() {
   if (game.isTouch) ui.toast('Touch controls: left thumb moves, right thumb looks.');
   else ui.toast('Pointer lock unavailable — free-mouse mode: just move the mouse to look.');
 }
+function lockFailed() {
+  if (locked || usingFallback) return;
+  // If pointer lock has never worked here, this environment doesn't support it.
+  if (!lockEverWorked) { enableFallback(); return; }
+  // It worked before — this is the browser's short cooldown after Escape.
+  // Stay paused; the player's next click is the gesture that relocks.
+  const hint = document.querySelector('#pauseHint div');
+  if (hint) hint.textContent = '— PAUSED — click to resume —';
+}
 function tryLock() {
   if (usingFallback) return;
   if (game.isTouch) { enableFallback(); return; }
   try {
     const p = renderer.domElement.requestPointerLock();
-    if (p && typeof p.catch === 'function') p.catch(() => enableFallback());
+    if (p && typeof p.catch === 'function') p.catch(() => lockFailed());
     setTimeout(() => {
-      if (started && !locked && !usingFallback && !ui.dialogueOpen) enableFallback();
+      if (started && !locked && !usingFallback && !ui.anyPanelOpen()) lockFailed();
     }, 700);
   } catch {
-    enableFallback();
+    lockFailed();
   }
 }
 game.tryLock = tryLock;
@@ -497,13 +507,23 @@ if (window.__applyTitleArt) window.__applyTitleArt(true);
 
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === renderer.domElement;
+  if (locked) {
+    lockEverWorked = true;
+    const hint = document.querySelector('#pauseHint div');
+    if (hint) hint.textContent = '— PAUSED — click to resume';
+  }
   if (started && !usingFallback) ui.setPaused(!locked && !ui.anyPanelOpen() &&
     document.getElementById('victory').style.display !== 'flex' &&
     document.getElementById('deathScreen').style.display !== 'flex');
 });
 
 renderer.domElement.addEventListener('click', () => {
-  if (started && !locked && !usingFallback && !ui.dialogueOpen) tryLock();
+  if (started && !locked && !usingFallback && !ui.anyPanelOpen()) tryLock();
+});
+
+// the pause overlay covers the whole screen — clicking it must resume too
+document.getElementById('pauseHint').addEventListener('click', () => {
+  if (started && !locked && !usingFallback && !ui.anyPanelOpen()) tryLock();
 });
 
 document.addEventListener('mousemove', (e) => {
