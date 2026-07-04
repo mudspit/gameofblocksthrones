@@ -217,13 +217,20 @@ const entities = new Entities(game);
 game.entities = entities;
 
 // NPCs
-entities.addNpc('rodrik', 'Steward Rodrik', 52.5, 101.5, { shirt: 0x2c4a6e, pants: 0x3a3a3a, skin: 0xd8b090 });
-entities.addNpc('tobbo', 'Smith Tobbo', 58.5, 104.5, { shirt: 0x5a3a24, pants: 0x2a2a2a, skin: 0xc99b71 });
-entities.addNpc('marta', 'Elder Marta', 140.5, 99.5, { shirt: 0x5e5040, pants: 0x4a4038, skin: 0xd8b090 });
-entities.addNpc('guard1', 'Keep Guard', 49.5, 110.5, { shirt: 0x555c66, pants: 0x2f2f2f, skin: 0xc9a07a });
-entities.addNpc('guard2', 'Keep Guard', 55.5, 110.5, { shirt: 0x555c66, pants: 0x2f2f2f, skin: 0xb58a63 });
-entities.addNpc('vill1', 'Villager Wyl', 137.5, 93.5, { shirt: 0x6e5a3a, pants: 0x4a4038, skin: 0xd8b090 });
-entities.addNpc('vill2', 'Villager Senna', 143.5, 96.5, { shirt: 0x4a5a3a, pants: 0x4a4038, skin: 0xc99b71 });
+entities.addNpc('rodrik', 'Steward Rodrik', 52.5, 101.5, { shirt: 0x2c4a6e, pants: 0x3a3a3a, skin: 0xd8b090,
+  face: { beard: '#b8b8b0', old: true } });
+entities.addNpc('tobbo', 'Smith Tobbo', 58.5, 104.5, { shirt: 0x5a3a24, pants: 0x2a2a2a, skin: 0xc99b71,
+  face: { beard: '#4a2a10', hair: '#4a2a10', brows: true } });
+entities.addNpc('marta', 'Elder Marta', 140.5, 99.5, { shirt: 0x5e5040, pants: 0x4a4038, skin: 0xd8b090,
+  face: { female: true, hair: '#c8c8c4', old: true } });
+entities.addNpc('guard1', 'Keep Guard', 49.5, 110.5, { shirt: 0x555c66, pants: 0x2f2f2f, skin: 0xc9a07a,
+  face: { hair: '#2a2a2a', brows: true } });
+entities.addNpc('guard2', 'Keep Guard', 55.5, 110.5, { shirt: 0x555c66, pants: 0x2f2f2f, skin: 0xb58a63,
+  face: { hair: '#1a1a1a', beard: '#1a1a1a' } });
+entities.addNpc('vill1', 'Villager Wyl', 137.5, 93.5, { shirt: 0x6e5a3a, pants: 0x4a4038, skin: 0xd8b090,
+  face: { hair: '#5a3a1a' } });
+entities.addNpc('vill2', 'Villager Senna', 143.5, 96.5, { shirt: 0x4a5a3a, pants: 0x4a4038, skin: 0xc99b71,
+  face: { female: true, hair: '#8a5a20' } });
 
 // Enemies: wolves in the northern woods
 const wolfSpots = [[62, 38], [78, 30], [95, 44], [110, 34], [70, 52], [124, 46], [88, 24], [104, 55]];
@@ -252,7 +259,8 @@ entities.addItem('weapon', 134.5, 90.5, 'crossbow');  // hidden inside a village
 game.onStageChanged = (s) => {
   if (s === 9) entities.addProp('chest', 'Strange Chest', 150.5, 153.5, 0x7a5a2a);
   if (s === 10) entities.addProp('forgefire', 'Forge Fire', 59.5, 104.5, 0xd86a2a);
-  if (s === 11) entities.addNpc('bryn', 'Ser Bryn', 137.5, 97.5, { shirt: 0x7a2a2a, pants: 0x3a3a3a, skin: 0xd8b090 });
+  if (s === 11) entities.addNpc('bryn', 'Ser Bryn', 137.5, 97.5, { shirt: 0x7a2a2a, pants: 0x3a3a3a, skin: 0xd8b090,
+    face: { beard: '#6a4028', hair: '#6a4028' } });
   if (s === 12) {
     const spots = [[48, 116], [52, 118], [56, 116], [50, 121], [54, 121], [52, 124]];
     for (const [x, z] of spots) entities.addEnemy('raider', x + 0.5, z + 0.5);
@@ -276,7 +284,8 @@ game.onStageChanged = (s) => {
     }
   }
   if (s === 23) entities.addEnemy('mountain', 170.5, 33.5);
-  if (s === 24) entities.addNpc('joffron', 'King Joffron', 172.5, 19.5, { shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0 });
+  if (s === 24) entities.addNpc('joffron', 'King Joffron', 172.5, 19.5, { shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0,
+    face: { hair: '#e8d070' } });
   if (s === 25) entities.addProp('ironthrone', 'The Iron Throne', 172.5, 18.5, 0x8a8a92);
 };
 

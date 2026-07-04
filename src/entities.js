@@ -24,14 +24,74 @@ function makeLabel(text, color = '#f0e6c8') {
   return spr;
 }
 
-function makeHumanoid({ shirt, pants, skin, scale = 1 }) {
+// ---------- pixel faces (Minecraft-style, drawn on a tiny canvas) ----------
+const FACE_CACHE = new Map();
+function hexColor(n) { return '#' + n.toString(16).padStart(6, '0'); }
+
+function faceTexture(skinHex, face = {}) {
+  const key = skinHex + JSON.stringify(face);
+  if (FACE_CACHE.has(key)) return FACE_CACHE.get(key);
+  const c = document.createElement('canvas');
+  c.width = 32; c.height = 32;
+  const g = c.getContext('2d');
+  const px = (x, y, w, h, color) => { g.fillStyle = color; g.fillRect(x * 4, y * 4, w * 4, h * 4); };
+  const skin = hexColor(skinHex);
+  px(0, 0, 8, 8, skin);
+  // hair fringe (top + temples); long hair frames the face for women
+  if (face.hair) {
+    px(0, 0, 8, 2, face.hair);
+    px(0, 2, 1, 1, face.hair); px(7, 2, 1, 1, face.hair);
+    if (face.female) { px(0, 2, 1, 6, face.hair); px(7, 2, 1, 6, face.hair); }
+  }
+  // eyes
+  if (face.undead) {
+    px(1, 3, 2, 1, '#10161c'); px(5, 3, 2, 1, '#10161c');   // dark sockets
+    px(2, 3, 1, 1, face.undead); px(5, 3, 1, 1, face.undead); // glowing pupils
+  } else {
+    const pupil = face.eyes || '#2a2a35';
+    px(1, 3, 1, 1, '#e8e8e8'); px(2, 3, 1, 1, pupil);
+    px(5, 3, 1, 1, pupil); px(6, 3, 1, 1, '#e8e8e8');
+  }
+  // brows (stern) / age lines
+  if (face.brows) { px(1, 2, 2, 1, '#1c1c20'); px(5, 2, 2, 1, '#1c1c20'); }
+  if (face.old && !face.brows) { px(1, 2, 2, 1, '#9a9a94'); px(5, 2, 2, 1, '#9a9a94'); }
+  // beard covers the jaw, mouth shows through
+  if (face.beard) {
+    px(1, 5, 6, 3, face.beard);
+    px(3, 5, 2, 1, '#2a1c16');
+  } else if (face.female) {
+    px(3, 5, 2, 1, '#a05050');
+  } else {
+    px(3, 5, 2, 1, face.old ? '#6a5a50' : '#5a3c30');
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  FACE_CACHE.set(key, tex);
+  return tex;
+}
+
+function makeHead(size, skin, face) {
+  const plain = new THREE.MeshLambertMaterial({ color: skin });
+  const hairMat = face && face.hair
+    ? new THREE.MeshLambertMaterial({ color: face.hair })
+    : plain;
+  const front = new THREE.MeshLambertMaterial({ map: faceTexture(skin, face || {}) });
+  // BoxGeometry material order: +x, -x, +y, -y, +z, -z (front is +z)
+  return new THREE.Mesh(
+    new THREE.BoxGeometry(size, size, size),
+    [plain, plain, hairMat, plain, front, hairMat]
+  );
+}
+
+function makeHumanoid({ shirt, pants, skin, scale = 1, face = {} }) {
   const g = new THREE.Group();
   const legL = box(0.22, 0.7, 0.22, pants); legL.position.set(-0.13, 0.35, 0);
   const legR = box(0.22, 0.7, 0.22, pants); legR.position.set(0.13, 0.35, 0);
   const body = box(0.5, 0.65, 0.28, shirt); body.position.y = 1.02;
   const armL = box(0.16, 0.6, 0.16, shirt); armL.position.set(-0.35, 1.05, 0);
   const armR = box(0.16, 0.6, 0.16, shirt); armR.position.set(0.35, 1.05, 0);
-  const head = box(0.42, 0.42, 0.42, skin); head.position.y = 1.58;
+  const head = makeHead(0.42, skin, face); head.position.y = 1.58;
   g.add(legL, legR, body, armL, armR, head);
   g.scale.setScalar(scale);
   g.userData.limbs = { legL, legR, armL, armR };
@@ -44,6 +104,13 @@ function makeQuadruped({ bodyColor, legColor, headColor, bodyW, bodyH, bodyL, le
   body.position.y = legH + bodyH / 2;
   const head = box(0.38 * headScale, 0.35 * headScale, 0.4 * headScale, headColor);
   head.position.set(0, legH + bodyH * 0.9, bodyL / 2 + 0.15);
+  // eyes on the front of the head
+  const hw = 0.38 * headScale, hh = 0.35 * headScale, hd = 0.4 * headScale;
+  for (const side of [-1, 1]) {
+    const eye = box(0.06, 0.06, 0.02, 0x14141a);
+    eye.position.set(side * hw * 0.24, hh * 0.14, hd / 2 + 0.01);
+    head.add(eye);
+  }
   const legs = [];
   const lx = bodyW / 2 - 0.1, lz = bodyL / 2 - 0.15;
   for (const [dx, dz] of [[-lx, lz], [lx, lz], [-lx, -lz], [lx, -lz]]) {
@@ -102,6 +169,15 @@ export function makeDragon(scale, bodyColor, wingColor) {
   }
   const hornL = box(0.12, 0.4, 0.12, wingColor); hornL.position.set(-0.22, 2.5, 2.2);
   const hornR = box(0.12, 0.4, 0.12, wingColor); hornR.position.set(0.22, 2.5, 2.2);
+  // glowing amber eyes
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.09, 0.03),
+      new THREE.MeshBasicMaterial({ color: 0xffb020 })
+    );
+    eye.position.set(side * 0.2, 2.22, 2.91);
+    g.add(eye);
+  }
   g.add(body, neck, head, jaw, tail1, tail2, hornL, hornR);
   g.scale.setScalar(scale);
   g.userData.wings = wings;
@@ -198,21 +274,29 @@ export class Entities {
     let group;
     if (type === 'wolf') group = makeWolf();
     else if (type === 'boar') group = makeBoar();
-    else if (type === 'boss') group = makeHumanoid({ shirt: 0x4d1259, pants: 0x2a2a2a, skin: 0xb08968, scale: 1.35 });
-    else if (type === 'wight') group = makeHumanoid({ shirt: 0x4a5248, pants: 0x3a423a, skin: 0x8fa08f });
-    else if (type === 'walker') group = makeHumanoid({ shirt: 0x2e3d44, pants: 0x23303a, skin: 0xbfe0e8, scale: 1.25 });
-    else if (type === 'raider') group = makeHumanoid({ shirt: 0x3a4a6e, pants: 0x2a2a2a, skin: 0xc9a07a });
+    else if (type === 'boss') group = makeHumanoid({ shirt: 0x4d1259, pants: 0x2a2a2a, skin: 0xb08968, scale: 1.35,
+      face: { beard: '#161616', hair: '#161616', brows: true } });
+    else if (type === 'wight') group = makeHumanoid({ shirt: 0x4a5248, pants: 0x3a423a, skin: 0x8fa08f,
+      face: { undead: '#9fe8c8', old: true } });
+    else if (type === 'walker') group = makeHumanoid({ shirt: 0x2e3d44, pants: 0x23303a, skin: 0xbfe0e8, scale: 1.25,
+      face: { undead: '#66e0ff', brows: true } });
+    else if (type === 'raider') group = makeHumanoid({ shirt: 0x3a4a6e, pants: 0x2a2a2a, skin: 0xc9a07a,
+      face: { hair: '#3a2a1a', brows: true } });
     else if (type === 'dragonboss') group = makeDragon(1.4, 0x3a5a2a, 0x7a9a3a);
-    else if (type === 'royal') group = makeHumanoid({ shirt: 0xc9a227, pants: 0x3a3a3a, skin: 0xd8b090 });
-    else if (type === 'mountain') group = makeHumanoid({ shirt: 0x8a8a92, pants: 0x4a4a52, skin: 0xd8c0a0, scale: 1.6 });
-    else if (type === 'king') group = makeHumanoid({ shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0 });
+    else if (type === 'royal') group = makeHumanoid({ shirt: 0xc9a227, pants: 0x3a3a3a, skin: 0xd8b090,
+      face: { hair: '#4a3a20', brows: true } });
+    else if (type === 'mountain') group = makeHumanoid({ shirt: 0x8a8a92, pants: 0x4a4a52, skin: 0xd8c0a0, scale: 1.6,
+      face: { beard: '#2a2018', brows: true } });
+    else if (type === 'king') group = makeHumanoid({ shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0,
+      face: { hair: '#e8d070' } });
     else if (type === 'gate') {
       group = new THREE.Group();
       const brace = box(2.4, 2.4, 0.4, 0x8a6a3a);
       brace.position.y = 1.6;
       group.add(brace);
     }
-    else group = makeHumanoid({ shirt: 0x704214, pants: 0x3d3d3d, skin: 0xc99b71 });
+    else group = makeHumanoid({ shirt: 0x704214, pants: 0x3d3d3d, skin: 0xc99b71,
+      face: { beard: '#3a2a1a', brows: true } });
     group.position.set(x, type === 'dragonboss' ? y + 13 : y, z);
     const label = makeLabel(type === 'gate' ? 'Kingsport Gate — dragonfire!' : def.label, def.labelColor);
     label.position.y = type === 'wolf' || type === 'boar' ? 1.3 :
@@ -239,8 +323,10 @@ export class Entities {
     const p = this.game.player.pos;
     let group;
     if (id === 'snow') group = makeWolf(0xdde4ec);
-    else if (id === 'orso') group = makeHumanoid({ shirt: 0x4a5a3a, pants: 0x5a4a30, skin: 0xc99b71 });
-    else group = makeHumanoid({ shirt: 0x7a2a2a, pants: 0x3a3a3a, skin: 0xd8b090 });
+    else if (id === 'orso') group = makeHumanoid({ shirt: 0x4a5a3a, pants: 0x5a4a30, skin: 0xc99b71,
+      face: { beard: '#4a4a42', hair: '#4a4a42' } });
+    else group = makeHumanoid({ shirt: 0x7a2a2a, pants: 0x3a3a3a, skin: 0xd8b090,
+      face: { beard: '#6a4028', hair: '#6a4028' } });
     group.position.set(p.x + 1.5, p.y, p.z + 1.5);
     const label = makeLabel(def.label + ' (ally)', def.labelColor);
     label.position.y = id === 'snow' ? 1.3 : 2.2;
