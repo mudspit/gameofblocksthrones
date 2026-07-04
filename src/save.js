@@ -1,6 +1,8 @@
 // Account profiles + save games, stored in the browser (localStorage).
 // Each profile: { name, created, save: {...} | null }
 
+import { TORCH } from './world.js';
+
 const KEY = 'gob_profiles_v1';
 const LAST = 'gob_last_profile';
 
@@ -31,6 +33,15 @@ export class SaveSystem {
     return all[name];
   }
 
+  setHouse(houseId) {
+    if (!this.profileName) return;
+    const all = this.profiles();
+    if (all[this.profileName]) {
+      all[this.profileName].house = houseId;
+      this.writeProfiles(all);
+    }
+  }
+
   deleteProfile(name) {
     const all = this.profiles();
     delete all[name];
@@ -53,6 +64,7 @@ export class SaveSystem {
       allies: e.allies.map(a => a.id),
       dragon: e.dragon ? e.dragon.state : null,
       itemsTaken: this.itemsTakenList || [],
+      torches: g.world.torches.map(t => [t.x, t.y, t.z]),
     };
   }
 
@@ -121,6 +133,13 @@ export class SaveSystem {
       for (const en of e.enemies) {
         if ((en.type === 'bandit' || en.type === 'boss') && !en.dead) e.removeEnemy(en);
       }
+    }
+
+    // player-placed torches
+    for (const [tx, ty, tz] of s.torches || []) {
+      g.world.set(tx, ty, tz, TORCH);
+      g.world.updateBlock(tx, ty, tz);
+      g.world.torches.push({ x: tx, y: ty, z: tz });
     }
 
     // upgrades that affect visuals / world state

@@ -300,6 +300,7 @@ export class Entities {
         if (this.game.save) {
           this.game.save.markItemTaken((it.weaponId || it.kind) + '@' + Math.round(it.pos.x) + ',' + Math.round(it.pos.z));
         }
+        this.game.audio?.play('pickup');
         if (it.kind === 'bandage') {
           p.bandages++;
           this.game.ui.toast('+1 Bandage — press Q to use (heals 30)', 'gold');
@@ -368,6 +369,7 @@ export class Entities {
         this.game.ui.toast('Ironwood bound in bronze — only dragonfire can burn it. Ride Vhagrik!');
         this.hintCd = 3;
       }
+      this.game.audio?.play('clink');
       e.aggroed = true;
       return true;
     }
@@ -376,11 +378,13 @@ export class Entities {
         this.game.ui.toast('Your steel cannot bite the cold ones — you need dragonglass or dragonfire!');
         this.hintCd = 3;
       }
+      this.game.audio?.play('clink');
       e.aggroed = true;
       return true; // "hit" but no damage
     }
     let amount = dmg;
     if (e.undead && source === 'dagger') amount = Math.round(dmg * 2.5);
+    this.game.audio?.play('hit');
     e.hp -= amount;
     e.hitFlash = 0.12;
     e.aggroed = true;
@@ -412,6 +416,7 @@ export class Entities {
     e.dead = true;
     e.deathT = 0;
     if (reward) {
+      this.game.audio?.play('coin');
       const p = this.game.player;
       p.gold += e.gold;
       p.addXp(e.xp);
@@ -541,7 +546,11 @@ export class Entities {
     }
     if (!this.nightWarned) {
       this.nightWarned = true;
+      this.game.audio?.play('night');
       this.game.ui.toast('Night falls. Dead things walk — stay near the keep, or bring dragonglass.');
+      if (this.game.world.torches.length === 0) {
+        this.game.ui.toast('Tip: place torches (T, costs 1 wood) — the dead will not rise near their light.');
+      }
     }
     const wantWights = stage >= 19 ? 9 : (stage >= 9 ? 7 : 4);
     const wantWalkers = (stage === 15 || stage >= 19) ? 3 : (stage >= 9 ? 2 : 1);
@@ -557,6 +566,8 @@ export class Entities {
         if (Math.hypot(x - KEEP.x, z - KEEP.z) < 30) continue;
         if (Math.hypot(x - 140, z - 96) < 22) continue;  // spare the village
         if (Math.hypot(x - 170, z - 30) < 32) continue;  // and the capital
+        // player-placed torches ward off the dead
+        if (this.game.world.torches.some(t => Math.hypot(t.x - x, t.z - z) < 12)) continue;
         return { x, z };
       }
       return null;
@@ -639,6 +650,7 @@ export class Entities {
 
       let moving = false;
       if (chasing && td <= e.leash && !nearKeep) {
+        if (!e.aggroed && e.type === 'walker') this.game.audio?.play('walker', 2500);
         e.aggroed = true;
         const dx = tgt.pos.x - e.pos.x, dz = tgt.pos.z - e.pos.z;
         e.group.rotation.y = Math.atan2(dx, dz);

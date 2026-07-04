@@ -48,6 +48,7 @@ export class Player {
       this.maxHp += 15;
       this.dmg += 2;
       this.hp = this.maxHp;
+      this.game.audio?.play('levelup');
       this.game.ui.toast(`Level ${this.level}! Health and damage increased.`, 'gold');
     }
   }
@@ -55,6 +56,7 @@ export class Player {
   damage(n) {
     if (this.dead) return;
     this.hp -= n;
+    this.game.audio?.play('hurt');
     this.game.ui.flashVignette();
     if (this.hp <= 0) { this.hp = 0; this.die(); }
   }
@@ -62,6 +64,7 @@ export class Player {
   die() {
     this.dead = true;
     this.gold = Math.floor(this.gold * 0.8);
+    this.game.audio?.play('death');
     this.game.onPlayerDeath();
   }
 

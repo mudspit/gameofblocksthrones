@@ -3,9 +3,9 @@ import * as THREE from 'three';
 export const W = 192, H = 48, D = 192, SEA = 11;
 export const AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, LOG = 4, LEAVES = 5,
              PLANK = 6, WATER = 7, SNOW = 8, THATCH = 9, COBBLE = 10,
-             EMBER = 11, BANNER = 12;
+             EMBER = 11, BANNER = 12, TORCH = 13;
 
-const BREAKABLE = new Set([GRASS, DIRT, LOG, LEAVES, PLANK, THATCH]);
+const BREAKABLE = new Set([GRASS, DIRT, LOG, LEAVES, PLANK, THATCH, TORCH]);
 
 const COLORS = {
   [GRASS]:  { top: [0.40, 0.62, 0.24], side: [0.44, 0.35, 0.22], bottom: [0.40, 0.31, 0.20] },
@@ -20,6 +20,7 @@ const COLORS = {
   [COBBLE]: { top: [0.44, 0.44, 0.46], side: [0.41, 0.41, 0.43], bottom: [0.36, 0.36, 0.38] },
   [EMBER]:  { top: [0.95, 0.45, 0.15], side: [0.83, 0.34, 0.12], bottom: [0.50, 0.20, 0.08] },
   [BANNER]: { top: [0.66, 0.13, 0.13], side: [0.63, 0.12, 0.12], bottom: [0.50, 0.10, 0.10] },
+  [TORCH]:  { top: [1.0, 0.88, 0.45], side: [1.0, 0.72, 0.28], bottom: [0.7, 0.45, 0.15] },
 };
 
 // Face table (from the classic voxel-geometry pattern): dir, 4 corners, indices [0,1,2, 2,1,3]
@@ -62,6 +63,8 @@ export class World {
     this.chunks = new Map();
     this.solidMat = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.waterMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.75, depthWrite: false });
+    this.torchMat = new THREE.MeshBasicMaterial({ vertexColors: true }); // unlit → glows at night
+    this.torches = []; // player-placed torch positions (undead won't spawn near them)
     // structure footprints (with margin) that trees must avoid
     this.sites = [
       { x0: 39, z0: 87, x1: 65, z1: 113 },   // holdfast
@@ -305,6 +308,28 @@ export class World {
     }
   }
 
+  // Recolor every banner block to the player's house colors and rebuild
+  // just the chunks that contain banners.
+  setBannerColor(rgb) {
+    COLORS[BANNER] = {
+      top: rgb,
+      side: [rgb[0] * 0.95, rgb[1] * 0.95, rgb[2] * 0.95],
+      bottom: [rgb[0] * 0.78, rgb[1] * 0.78, rgb[2] * 0.78],
+    };
+    const dirty = new Set();
+    for (let x = 0; x < W; x++)
+      for (let z = 0; z < D; z++)
+        for (let y = 0; y < H; y++) {
+          if (this.data[this.idx(x, y, z)] === BANNER) {
+            dirty.add(Math.floor(x / CHUNK) + ',' + Math.floor(z / CHUNK));
+          }
+        }
+    for (const key of dirty) {
+      const [cx, cz] = key.split(',').map(Number);
+      this.buildChunk(cx, cz);
+    }
+  }
+
   raiseBanner() {
     if (!this.tower) return;
     const { x, z, top } = this.tower;
@@ -323,12 +348,13 @@ export class World {
     const key = cx + ',' + cz;
     const old = this.chunks.get(key);
     if (old) {
-      for (const m of [old.solid, old.water]) {
+      for (const m of [old.solid, old.water, old.torch]) {
         if (m) { this.scene.remove(m); m.geometry.dispose(); }
       }
     }
     const sPos = [], sNrm = [], sCol = [], sIdx = [];
     const wPos = [], wNrm = [], wCol = [], wIdx = [];
+    const tPos = [], tNrm = [], tCol = [], tIdx = [];
     const x0 = cx * CHUNK, z0 = cz * CHUNK;
     for (let x = x0; x < Math.min(x0 + CHUNK, W); x++) {
       for (let z = z0; z < Math.min(z0 + CHUNK, D); z++) {
@@ -343,6 +369,7 @@ export class World {
             continue;
           }
           const col = COLORS[b];
+          const glow = b === TORCH || b === EMBER; // unlit material — visible in the dark
           for (const f of FACES) {
             const n = this.get(x + f.dir[0], y + f.dir[1], z + f.dir[2]);
             if (n !== AIR && n !== WATER) continue;
@@ -351,16 +378,21 @@ export class World {
             if (f.dir[1] === 1) base = col.top;
             else if (f.dir[1] === -1) base = col.bottom;
             else base = col.side;
-            const tint = f.shade * (0.94 + 0.10 * hash3(x, y, z));
-            this.pushFace(sPos, sNrm, sCol, sIdx, x, y, z, f,
-              [base[0] * tint, base[1] * tint, base[2] * tint]);
+            if (glow) {
+              this.pushFace(tPos, tNrm, tCol, tIdx, x, y, z, f, [base[0], base[1], base[2]]);
+            } else {
+              const tint = f.shade * (0.94 + 0.10 * hash3(x, y, z));
+              this.pushFace(sPos, sNrm, sCol, sIdx, x, y, z, f,
+                [base[0] * tint, base[1] * tint, base[2] * tint]);
+            }
           }
         }
       }
     }
-    const entry = { solid: null, water: null };
+    const entry = { solid: null, water: null, torch: null };
     if (sIdx.length) entry.solid = this.makeMesh(sPos, sNrm, sCol, sIdx, this.solidMat);
     if (wIdx.length) entry.water = this.makeMesh(wPos, wNrm, wCol, wIdx, this.waterMat);
+    if (tIdx.length) entry.torch = this.makeMesh(tPos, tNrm, tCol, tIdx, this.torchMat);
     this.chunks.set(key, entry);
   }
 

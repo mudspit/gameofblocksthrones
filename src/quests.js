@@ -78,6 +78,7 @@ export class Quests {
 
   setStage(s) {
     this.stage = s;
+    this.game.audio?.play('quest');
     if (this.game.onStageChanged) this.game.onStageChanged(s);
     this.game.ui.updateTracker();
     this.game.ui.updateHud();

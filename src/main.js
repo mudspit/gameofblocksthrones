@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { World, LOG, AIR, PLANK, W, D } from './world.js';
+import { World, LOG, AIR, PLANK, TORCH, W, D } from './world.js';
+import { GameAudio } from './audio.js';
 import { Player } from './player.js';
 import { Entities } from './entities.js';
 import { Quests } from './quests.js';
@@ -10,6 +11,18 @@ import { initTouch } from './touch.js';
 const DAY_LENGTH = 300; // seconds per full day/night cycle
 
 const game = {};
+game.audio = new GameAudio();
+
+// The great houses a new account may swear to — banner color + sigil.
+const HOUSES = [
+  { id: 'direwolf', sigil: '🐺', name: 'House of the Direwolf', hex: '#9aa5b0', rgb: [0.60, 0.65, 0.69] },
+  { id: 'dragon',   sigil: '🐉', name: 'House of the Dragon',   hex: '#a82424', rgb: [0.66, 0.14, 0.14] },
+  { id: 'lion',     sigil: '🦁', name: 'House of the Lion',     hex: '#d4af37', rgb: [0.83, 0.69, 0.22] },
+  { id: 'rose',     sigil: '🌹', name: 'House of the Rose',     hex: '#3a8a3a', rgb: [0.23, 0.54, 0.23] },
+  { id: 'falcon',   sigil: '🦅', name: 'House of the Falcon',   hex: '#4a7ab8', rgb: [0.29, 0.48, 0.72] },
+  { id: 'kraken',   sigil: '🦑', name: 'House of the Kraken',   hex: '#2a7a7a', rgb: [0.16, 0.48, 0.48] },
+];
+let chosenHouse = HOUSES[1]; // dragon red by default
 
 // ---------- renderer / scene ----------
 const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -269,6 +282,7 @@ game.onStageChanged = (s) => {
 
 game.onActThreeComplete = () => {
   document.exitPointerLock();
+  game.audio.play('fanfare');
   ui.showVictory({ level: player.level, gold: player.gold }, () => { game.tryLock(); }, {
     title: 'SOVEREIGN OF THE BLOCKS',
     text: `The Iron Throne is yours. From Mudford Keep to Kingsport, the Seven Block-Kingdoms kneel — ` +
@@ -279,6 +293,7 @@ game.onActThreeComplete = () => {
 
 game.onActTwoComplete = () => {
   document.exitPointerLock();
+  game.audio.play('fanfare');
   ui.showVictory({ level: player.level, gold: player.gold }, () => { game.tryLock(); }, {
     title: 'DRAGONLORD OF MUDFORD',
     text: `The Wild Dragon is slain, Winterbite hangs at your hip, and Vhagrik rules your sky. ` +
@@ -363,6 +378,13 @@ function closeMission() { ui.hideMission(); maybeRelock(); }
 game.openMission = openMission;
 
 ui.el.mapBtn.addEventListener('click', toggleMap);
+document.getElementById('muteBtn').addEventListener('click', () => {
+  game.audio.init();
+  const on = game.audio.toggle();
+  document.getElementById('muteBtn').textContent = on ? '🔊' : '🔇';
+  if (on) game.audio.play('ui');
+});
+document.getElementById('muteBtn').textContent = game.audio.enabled ? '🔊' : '🔇';
 ui.el.mapClose.addEventListener('click', closeMap);
 ui.el.mapObjective.addEventListener('click', openMission);
 ui.el.tracker.addEventListener('click', openMission);
@@ -378,6 +400,26 @@ const accountName = document.getElementById('accountName');
 const profileList = document.getElementById('profileList');
 const beginBtn = document.getElementById('beginBtn');
 
+// house picker on the title screen
+const houseRow = document.getElementById('houseRow');
+function renderHouseRow() {
+  houseRow.innerHTML = '';
+  for (const h of HOUSES) {
+    const chip = document.createElement('span');
+    chip.className = 'house-chip' + (chosenHouse.id === h.id ? ' selected' : '');
+    chip.innerHTML = `<span class="swatch" style="background:${h.hex}"></span>${h.sigil}`;
+    chip.title = h.name;
+    chip.onclick = () => {
+      chosenHouse = h;
+      game.audio.play('ui');
+      renderHouseRow();
+      document.getElementById('houseHint').textContent = h.name;
+    };
+    houseRow.appendChild(chip);
+  }
+  document.getElementById('houseHint').textContent = chosenHouse.name;
+}
+
 function refreshAccountUI() {
   accountName.value = accountName.value || saveSys.lastProfile();
   profileList.innerHTML = '';
@@ -388,7 +430,12 @@ function refreshAccountUI() {
     const hasSave = !!all[name].save;
     chip.textContent = hasSave ? `${name} · ${['Hedge Knight','Knight','Lord','Dragonlord','Sovereign'][all[name].save.stage >= 26 ? 4 : all[name].save.stage >= 17 ? 3 : all[name].save.stage >= 8 ? 2 : all[name].save.stage >= 2 ? 1 : 0]}` : name;
     chip.title = hasSave ? 'Continue this game' : 'New game';
-    chip.onclick = () => { accountName.value = name; updateBeginLabel(); };
+    chip.onclick = () => {
+      accountName.value = name;
+      const savedHouse = HOUSES.find(h => h.id === all[name].house);
+      if (savedHouse) { chosenHouse = savedHouse; renderHouseRow(); }
+      updateBeginLabel();
+    };
     const del = document.createElement('span');
     del.className = 'del';
     del.textContent = '✕';
@@ -412,11 +459,14 @@ function updateBeginLabel() {
   beginBtn.textContent = (n && all[n] && all[n].save) ? `CONTINUE, ${n.toUpperCase()}` : 'TAKE UP YOUR SWORD';
 }
 accountName.addEventListener('input', updateBeginLabel);
+renderHouseRow();
 refreshAccountUI();
 
 beginBtn.addEventListener('click', () => {
+  game.audio.init();
   const name = accountName.value.trim() || 'Knight of Mudford';
   saveSys.createOrSelect(name);
+  saveSys.setHouse(chosenHouse.id);
   started = true;
   ui.showGameUI();
   if (game.isTouch && document.documentElement.requestFullscreen) {
@@ -426,8 +476,13 @@ beginBtn.addEventListener('click', () => {
     if (saveSys.load()) ui.toast(`Welcome back, ${name}. Your watch continues.`, 'gold');
   } else {
     saveSys.save(); // first save right away
-    ui.toast(`Account created — ${name}. Your deeds will be remembered.`, 'gold');
+    ui.toast(`Account created — ${name} of the ${chosenHouse.name}.`, 'gold');
   }
+  // fly the house colors on every banner in the realm
+  world.setBannerColor(chosenHouse.rgb);
+  const hn = document.getElementById('houseName');
+  if (hn) hn.innerHTML = `<span class="swatch" style="background:${chosenHouse.hex}"></span>${chosenHouse.sigil} ${chosenHouse.name}`;
+  game.audio.play('fanfare');
   refreshWeaponVM();
   tryLock();
 });
@@ -471,6 +526,7 @@ document.addEventListener('keydown', (e) => {
     if (e.code === 'KeyQ') useBandage();
     if (e.code === 'KeyF') useKit();
     if (e.code === 'KeyH') whistleHorse();
+    if (e.code === 'KeyT' && !player.dead) placeTorch();
   }
   if (e.code === 'KeyM' && started && !ui.dialogueOpen) {
     if (ui.missionOpen) closeMission();
@@ -507,6 +563,7 @@ function attack() {
   // dragonback: every attack is dragonfire
   if (player.mount === 'dragon') {
     player.attackCd = 0.8;
+    game.audio.play('fire');
     const from = origin.clone().add(dir.clone().multiplyScalar(2.5));
     from.y -= 0.6;
     entities.shoot('fire', from, dir.clone().multiplyScalar(24), 35, true);
@@ -528,17 +585,23 @@ function attack() {
   player.swingT = 1;
 
   if (w.ranged) {
+    game.audio.play('arrow');
     const from = origin.clone().add(dir.clone().multiplyScalar(0.8));
     entities.shoot('arrow', from, dir.clone().multiplyScalar(w.speed || 34), w.dmg(), true);
     return;
   }
 
   // melee: enemies first, then blocks
+  game.audio.play('swing');
   if (entities.hitEnemyFromCamera(origin, dir, w.range, w.dmg(), w.source())) { ui.updateHud(); return; }
   const hit = world.raycast(origin, dir, 5);
   if (hit && world.isBreakable(hit.block)) {
     world.set(hit.x, hit.y, hit.z, AIR);
     world.updateBlock(hit.x, hit.y, hit.z);
+    game.audio.play('chop');
+    if (hit.block === TORCH) {
+      world.torches = world.torches.filter(t => !(t.x === hit.x && t.y === hit.y && t.z === hit.z));
+    }
     if (hit.block === LOG) {
       player.wood++;
       ui.toast('+1 log');
@@ -546,6 +609,25 @@ function attack() {
       ui.updateHud();
     }
   }
+}
+
+function placeAt(blockId) {
+  if (player.wood <= 0) { ui.toast('No wood — chop trees for logs.'); return; }
+  const hit = world.raycast(player.eyePos(), camDir(), 5);
+  if (!hit) return;
+  const x = hit.x + hit.nx, y = hit.y + hit.ny, z = hit.z + hit.nz;
+  if (!world.inBounds(x, y, z) || world.get(x, y, z) !== AIR) return;
+  const p = player.pos;
+  if (Math.floor(p.x) === x && (Math.floor(p.y) === y || Math.floor(p.y + 1) === y) && Math.floor(p.z) === z) return;
+  world.set(x, y, z, blockId);
+  world.updateBlock(x, y, z);
+  player.wood--;
+  game.audio.play('place');
+  if (blockId === TORCH) {
+    world.torches.push({ x, y, z });
+    ui.toast('Torch placed — the dead will not rise near its light.');
+  }
+  ui.updateHud();
 }
 
 function whistleHorse() {
@@ -562,6 +644,7 @@ function useBandage() {
   if (player.hp >= player.maxHp) { ui.toast('You are unhurt.'); return; }
   player.bandages--;
   player.hp = Math.min(player.maxHp, player.hp + 30);
+  game.audio.play('heal');
   ui.toast('Bandage applied — +30 health.', 'gold');
   ui.updateHud();
 }
@@ -571,6 +654,7 @@ function useKit() {
   if (player.hp >= player.maxHp) { ui.toast('You are unhurt.'); return; }
   player.kits--;
   player.hp = player.maxHp;
+  game.audio.play('heal');
   ui.toast("Maester's Kit used — fully healed.", 'gold');
   ui.updateHud();
 }
@@ -586,6 +670,7 @@ function mountDragon() {
   entities.dragon.mounted = true;
   player.mount = 'dragon';
   player.pos.y += 2.5;
+  game.audio.play('roar');
   refreshWeaponVM();
   ui.toast('RIDING VHAGRIK — W: fly where you look · Space: climb · LMB: dragonfire · E: dismount', 'gold');
 }
@@ -603,20 +688,8 @@ function dismount() {
 }
 game.dismount = dismount;
 
-function placeBlock() {
-  if (player.wood <= 0) { ui.toast('No wood — chop trees for logs.'); return; }
-  const hit = world.raycast(player.eyePos(), camDir(), 5);
-  if (!hit) return;
-  const x = hit.x + hit.nx, y = hit.y + hit.ny, z = hit.z + hit.nz;
-  if (!world.inBounds(x, y, z) || world.get(x, y, z) !== AIR) return;
-  // don't place inside the player
-  const p = player.pos;
-  if (Math.floor(p.x) === x && (Math.floor(p.y) === y || Math.floor(p.y + 1) === y) && Math.floor(p.z) === z) return;
-  world.set(x, y, z, PLANK);
-  world.updateBlock(x, y, z);
-  player.wood--;
-  ui.updateHud();
-}
+function placeBlock() { placeAt(PLANK); }
+function placeTorch() { placeAt(TORCH); }
 
 function tryInteract() {
   // mounted: E dismounts
@@ -692,6 +765,7 @@ initTouch(game, {
   useBandage: () => { if (started) useBandage(); },
   useKit: () => { if (started) useKit(); },
   whistle: () => { if (started) whistleHorse(); },
+  placeTorch: () => { if (started && !ui.anyPanelOpen() && !player.dead) placeTorch(); },
 });
 
 window.game = game; // debug/testing handle

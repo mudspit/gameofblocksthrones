@@ -23,6 +23,7 @@ export class UI {
     for (const id of ['hud', 'stats', 'tracker', 'crosshair', 'compass', 'controlsBar', 'mapBtn']) {
       this.el[id].style.display = 'block';
     }
+    document.getElementById('muteBtn').style.display = 'block';
     this.updateHud();
     this.updateTracker();
   }
