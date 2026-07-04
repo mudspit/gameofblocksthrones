@@ -43,6 +43,7 @@ export class SaveSystem {
       v: 1, ts: Date.now(),
       stage: q.stage,
       wolfKills: q.wolfKills, raiderKills: q.raiderKills, walkerKills: q.walkerKills,
+      royalKills: q.royalKills,
       player: {
         pos: [p.pos.x, p.pos.y, p.pos.z],
         hp: p.hp, maxHp: p.maxHp, dmg: p.dmg, gold: p.gold, wood: p.wood, meat: p.meat,
@@ -86,6 +87,7 @@ export class SaveSystem {
     q.wolfKills = s.wolfKills || 0;
     q.raiderKills = s.raiderKills || 0;
     q.walkerKills = s.walkerKills || 0;
+    q.royalKills = s.royalKills || 0;
 
     // player
     Object.assign(p, {
@@ -121,9 +123,10 @@ export class SaveSystem {
       }
     }
 
-    // upgrades that affect visuals
+    // upgrades that affect visuals / world state
     if (s.stage >= 5) g.upgradeSword(s.player.hasValyrian);
     if (s.stage >= 8) g.world.raiseBanner();
+    if (s.stage >= 22) g.world.openCityGate();
 
     // enter the stage (spawns its props/enemies) without re-running old ones
     q.stage = s.stage;

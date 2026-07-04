@@ -55,6 +55,7 @@ export class UI {
     const labels = [
       ['Mudford Keep', 52, 100], ['The Village', 140, 96],
       ['Northern Woods', 96, 34], ['Bandit Camp', 150, 156],
+      ['Kingsport', 170, 30],
     ];
     for (const [name, x, z] of labels) {
       const el = document.createElement('div');

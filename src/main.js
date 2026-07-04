@@ -250,6 +250,31 @@ game.onStageChanged = (s) => {
   }
   if (s === 14) entities.addProp('cairn', 'Frozen Cairn', 28.5, 26.5, 0x9aa5ad);
   if (s === 16) entities.addEnemy('dragonboss', 34.5, 150.5);
+  // --- Act III ---
+  if (s === 20) {
+    for (const [x, z] of [[118, 58], [122, 58], [118, 62], [122, 62]]) {
+      entities.addEnemy('royal', x + 0.5, z + 0.5);
+    }
+  }
+  if (s === 21) entities.addEnemy('gate', 170.5, 49.5);
+  if (s === 22) {
+    for (const [x, z] of [[170, 44], [168, 40], [172, 40], [164, 34], [176, 34], [162, 30], [178, 30], [170, 32]]) {
+      entities.addEnemy('royal', x + 0.5, z + 0.5);
+    }
+  }
+  if (s === 23) entities.addEnemy('mountain', 170.5, 33.5);
+  if (s === 24) entities.addNpc('joffron', 'King Joffron', 172.5, 19.5, { shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0 });
+  if (s === 25) entities.addProp('ironthrone', 'The Iron Throne', 172.5, 18.5, 0x8a8a92);
+};
+
+game.onActThreeComplete = () => {
+  document.exitPointerLock();
+  ui.showVictory({ level: player.level, gold: player.gold }, () => { game.tryLock(); }, {
+    title: 'SOVEREIGN OF THE BLOCKS',
+    text: `The Iron Throne is yours. From Mudford Keep to Kingsport, the Seven Block-Kingdoms kneel — ` +
+          `Level ${player.level}, ${player.gold} gold in the royal treasury. ` +
+          `But the nights grow longer, and the dead grow bolder. Act IV: The Long Night is coming.`
+  });
 };
 
 game.onActTwoComplete = () => {
@@ -361,7 +386,7 @@ function refreshAccountUI() {
     const chip = document.createElement('span');
     chip.className = 'profile-chip';
     const hasSave = !!all[name].save;
-    chip.textContent = hasSave ? `${name} · ${['Hedge Knight','Knight','Lord','Dragonlord'][all[name].save.stage >= 17 ? 3 : all[name].save.stage >= 8 ? 2 : all[name].save.stage >= 2 ? 1 : 0]}` : name;
+    chip.textContent = hasSave ? `${name} · ${['Hedge Knight','Knight','Lord','Dragonlord','Sovereign'][all[name].save.stage >= 26 ? 4 : all[name].save.stage >= 17 ? 3 : all[name].save.stage >= 8 ? 2 : all[name].save.stage >= 2 ? 1 : 0]}` : name;
     chip.title = hasSave ? 'Continue this game' : 'New game';
     chip.onclick = () => { accountName.value = name; updateBeginLabel(); };
     const del = document.createElement('span');

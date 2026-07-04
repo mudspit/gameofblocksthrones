@@ -125,11 +125,22 @@ const ENEMY_DEFS = {
   raider: { hp: 60,  dmg: 10, speed: 3.8, aggro: 400, leash: 999, gold: 12, xp: 45, label: 'Vale Raider', labelColor: '#ffb0b0' },
   boar:   { hp: 35,  dmg: 7,  speed: 4.6, aggro: 9,  leash: 25, gold: 2,   xp: 18,  label: 'Wild Boar', labelColor: '#e0c0a0' },
   dragonboss: { hp: 500, dmg: 22, speed: 0, aggro: 48, leash: 999, gold: 300, xp: 500, label: 'The Wild Dragon', labelColor: '#a0ff90' },
+  royal:  { hp: 70,  dmg: 11, speed: 3.7, aggro: 15, leash: 45, gold: 14,  xp: 50,  label: 'Royal Guard', labelColor: '#ffdf80' },
+  gate:   { hp: 350, dmg: 0,  speed: 0,   aggro: 0,  leash: 1,  gold: 0,   xp: 150, label: 'Kingsport Gate', labelColor: '#ffb060' },
+  mountain: { hp: 420, dmg: 24, speed: 3.1, aggro: 18, leash: 60, gold: 250, xp: 450, label: 'Ser Gregor the Block', labelColor: '#ff8080' },
+  king:   { hp: 160, dmg: 12, speed: 3.4, aggro: 20, leash: 60, gold: 600, xp: 600, label: 'King Joffron', labelColor: '#ffd54a' },
+};
+
+const BOSS_BARS = {
+  boss: 'BANDIT KING RORGE',
+  mountain: 'SER GREGOR THE BLOCK',
+  king: 'KING JOFFRON',
 };
 
 const ALLY_DEFS = {
   snow: { hp: 70,  dmg: 9,  speed: 5.0, label: 'Snow', labelColor: '#eef4ff' },
   bryn: { hp: 140, dmg: 15, speed: 4.2, label: 'Ser Bryn', labelColor: '#ffd0a0' },
+  orso: { hp: 130, dmg: 13, speed: 4.3, label: 'Captain Orso', labelColor: '#c0e0a0' },
 };
 
 const KEEP = { x: 52, z: 100 };
@@ -192,10 +203,22 @@ export class Entities {
     else if (type === 'walker') group = makeHumanoid({ shirt: 0x2e3d44, pants: 0x23303a, skin: 0xbfe0e8, scale: 1.25 });
     else if (type === 'raider') group = makeHumanoid({ shirt: 0x3a4a6e, pants: 0x2a2a2a, skin: 0xc9a07a });
     else if (type === 'dragonboss') group = makeDragon(1.4, 0x3a5a2a, 0x7a9a3a);
+    else if (type === 'royal') group = makeHumanoid({ shirt: 0xc9a227, pants: 0x3a3a3a, skin: 0xd8b090 });
+    else if (type === 'mountain') group = makeHumanoid({ shirt: 0x8a8a92, pants: 0x4a4a52, skin: 0xd8c0a0, scale: 1.6 });
+    else if (type === 'king') group = makeHumanoid({ shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0 });
+    else if (type === 'gate') {
+      group = new THREE.Group();
+      const brace = box(2.4, 2.4, 0.4, 0x8a6a3a);
+      brace.position.y = 1.6;
+      group.add(brace);
+    }
     else group = makeHumanoid({ shirt: 0x704214, pants: 0x3d3d3d, skin: 0xc99b71 });
     group.position.set(x, type === 'dragonboss' ? y + 13 : y, z);
-    const label = makeLabel(def.label, def.labelColor);
-    label.position.y = type === 'wolf' || type === 'boar' ? 1.3 : (type === 'boss' || type === 'walker' ? 2.9 : (type === 'dragonboss' ? 4.5 : 2.2));
+    const label = makeLabel(type === 'gate' ? 'Kingsport Gate — dragonfire!' : def.label, def.labelColor);
+    label.position.y = type === 'wolf' || type === 'boar' ? 1.3 :
+      (type === 'boss' || type === 'walker' ? 2.9 :
+      (type === 'dragonboss' ? 4.5 :
+      (type === 'mountain' ? 3.4 : (type === 'gate' ? 3.6 : 2.2))));
     group.add(label);
     this.game.scene.add(group);
     const e = {
@@ -216,6 +239,7 @@ export class Entities {
     const p = this.game.player.pos;
     let group;
     if (id === 'snow') group = makeWolf(0xdde4ec);
+    else if (id === 'orso') group = makeHumanoid({ shirt: 0x4a5a3a, pants: 0x5a4a30, skin: 0xc99b71 });
     else group = makeHumanoid({ shirt: 0x7a2a2a, pants: 0x3a3a3a, skin: 0xd8b090 });
     group.position.set(p.x + 1.5, p.y, p.z + 1.5);
     const label = makeLabel(def.label + ' (ally)', def.labelColor);
@@ -339,6 +363,14 @@ export class Entities {
   hitEnemy(e, dmg, source, knockDir = null) {
     if (e.dead) return false;
     const anti = source === 'dagger' || source === 'fire' || source === 'valyrian';
+    if (e.type === 'gate' && source !== 'fire') {
+      if (this.hintCd <= 0) {
+        this.game.ui.toast('Ironwood bound in bronze — only dragonfire can burn it. Ride Vhagrik!');
+        this.hintCd = 3;
+      }
+      e.aggroed = true;
+      return true;
+    }
     if (e.type === 'walker' && !anti) {
       if (this.hintCd <= 0) {
         this.game.ui.toast('Your steel cannot bite the cold ones — you need dragonglass or dragonfire!');
@@ -393,12 +425,16 @@ export class Entities {
       if ((e.type === 'bandit' || e.type === 'raider') && Math.random() < 0.4) {
         this.addItem('bandage', e.pos.x, e.pos.z);
       }
-      if (e.type === 'boss' || e.type === 'dragonboss') {
+      if (['boss', 'dragonboss', 'mountain', 'king'].includes(e.type)) {
         this.addItem('kit', e.pos.x + 1, e.pos.z);
         this.addItem('bandage', e.pos.x - 1, e.pos.z);
       }
     }
-    if (e.type === 'boss' || e.type === 'dragonboss') this.game.ui.hideBossBar();
+    if (e.type === 'gate') {
+      this.game.world.openCityGate();
+      this.game.ui.toast('The gate burns! Kingsport lies open.', 'gold');
+    }
+    if (BOSS_BARS[e.type] || e.type === 'dragonboss' || e.type === 'gate') this.game.ui.hideBossBar();
   }
 
   removeEnemy(e) {
@@ -437,7 +473,7 @@ export class Entities {
       if (!hit && pr.friendly) {
         for (const e of this.enemies) {
           if (e.dead) continue;
-          const r = e.type === 'dragonboss' ? 3.0 : 1.3;
+          const r = (e.type === 'dragonboss' || e.type === 'gate') ? 3.0 : (e.type === 'mountain' ? 2.0 : 1.3);
           const cy = e.type === 'dragonboss' ? 1.5 : 0.9;
           const dx = e.pos.x - pr.pos.x, dy = (e.pos.y + cy) - pr.pos.y, dz = e.pos.z - pr.pos.z;
           if (dx * dx + dy * dy + dz * dz < r * r) {
@@ -507,8 +543,8 @@ export class Entities {
       this.nightWarned = true;
       this.game.ui.toast('Night falls. Dead things walk — stay near the keep, or bring dragonglass.');
     }
-    const wantWights = stage >= 9 ? 7 : 4;
-    const wantWalkers = stage === 15 ? 3 : (stage >= 9 ? 2 : 1);
+    const wantWights = stage >= 19 ? 9 : (stage >= 9 ? 7 : 4);
+    const wantWalkers = (stage === 15 || stage >= 19) ? 3 : (stage >= 9 ? 2 : 1);
     const wights = this.enemies.filter(e => e.type === 'wight' && !e.dead).length;
     const walkers = this.enemies.filter(e => e.type === 'walker' && !e.dead).length;
     const p = this.game.player.pos;
@@ -519,7 +555,8 @@ export class Entities {
         const x = Math.max(5, Math.min(187, p.x + Math.cos(a) * d));
         const z = Math.max(5, Math.min(187, p.z + Math.sin(a) * d));
         if (Math.hypot(x - KEEP.x, z - KEEP.z) < 30) continue;
-        if (Math.hypot(x - 140, z - 96) < 22) continue; // spare the village
+        if (Math.hypot(x - 140, z - 96) < 22) continue;  // spare the village
+        if (Math.hypot(x - 170, z - 30) < 32) continue;  // and the capital
         return { x, z };
       }
       return null;
@@ -583,6 +620,10 @@ export class Entities {
         if (e.pos.distanceTo(p.pos) < 55) { bossFrac = e.hp / e.maxHp; bossName = 'THE WILD DRAGON'; }
         continue;
       }
+      if (e.type === 'gate') {
+        if (e.aggroed && e.pos.distanceTo(p.pos) < 45) { bossFrac = e.hp / e.maxHp; bossName = 'THE GATES OF KINGSPORT'; }
+        continue;
+      }
 
       // pick nearest target
       let tgt = null, td = Infinity;
@@ -611,7 +652,7 @@ export class Entities {
           e.attackCd = 1.2;
           tgt.hit(e.dmg);
         }
-        if (e.type === 'boss') { bossFrac = e.hp / e.maxHp; bossName = 'BANDIT KING RORGE'; }
+        if (BOSS_BARS[e.type]) { bossFrac = e.hp / e.maxHp; bossName = BOSS_BARS[e.type]; }
       } else {
         const hx = e.spawnPos.x - e.pos.x, hz = e.spawnPos.z - e.pos.z;
         const hd = Math.hypot(hx, hz);
@@ -676,7 +717,7 @@ export class Entities {
       // choose a foe: nearest living, non-walker enemy near the party
       let foe = null, fd = 14;
       for (const e of this.enemies) {
-        if (e.dead || e.type === 'walker' || e.type === 'dragonboss') continue;
+        if (e.dead || e.type === 'walker' || e.type === 'dragonboss' || e.type === 'gate') continue;
         if (!e.aggroed && e.pos.distanceTo(p.pos) > 12) continue;
         const d = e.pos.distanceTo(a.pos);
         if (d < fd) { fd = d; foe = e; }

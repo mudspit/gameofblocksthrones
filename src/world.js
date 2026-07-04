@@ -66,7 +66,8 @@ export class World {
     this.sites = [
       { x0: 39, z0: 87, x1: 65, z1: 113 },   // holdfast
       { x0: 124, z0: 80, x1: 156, z1: 112 }, // village
-      { x0: 136, z0: 142, x1: 164, z1: 170 } // bandit camp
+      { x0: 136, z0: 142, x1: 164, z1: 170 }, // bandit camp
+      { x0: 148, z0: 8, x1: 192, z1: 54 }    // Kingsport, the capital
     ];
   }
 
@@ -107,7 +108,9 @@ export class World {
     this.buildVillage(gV);
     const gC = this.flatten(140, 146, 160, 166);
     this.buildCamp(140, gC, 146, 160, 166);
-    this.grounds = { holdfast: gH, village: gV, camp: gC };
+    const gK = this.flatten(152, 12, 188, 48);
+    this.buildCapital(152, gK, 12, 188, 48);
+    this.grounds = { holdfast: gH, village: gV, camp: gC, capital: gK };
     // --- trees: dense northern forest + scattered elsewhere ---
     this.plantTrees(220, 10, 10, 182, 68);   // northern woods
     this.plantTrees(90, 10, 68, 182, 182);   // scattered south
@@ -214,6 +217,67 @@ export class World {
     this.fill(143, g + 2, 150, 145, g + 2, 150, PLANK);
     this.fill(155, g + 1, 162, 157, g + 1, 162, PLANK);
     this.fill(155, g + 2, 161, 157, g + 2, 161, PLANK);
+  }
+
+  buildCapital(x0, g, z0, x1, z1) {
+    // city walls
+    for (let x = x0; x <= x1; x++) {
+      for (const z of [z0, z1]) {
+        this.fill(x, g + 1, z, x, g + 5, z, STONE);
+        if ((x + z) % 2 === 0) this.set(x, g + 6, z, STONE);
+      }
+    }
+    for (let z = z0; z <= z1; z++) {
+      for (const x of [x0, x1]) {
+        this.fill(x, g + 1, z, x, g + 5, z, STONE);
+        if ((x + z) % 2 === 0) this.set(x, g + 6, z, STONE);
+      }
+    }
+    // south gate: opening barred with ironwood planks until burned
+    this.fill(168, g + 1, z1, 172, g + 5, z1, AIR);
+    this.fill(168, g + 1, z1, 172, g + 4, z1, PLANK);
+    this.cityGate = { x0: 168, x1: 172, z: z1, y0: g + 1, y1: g + 4 };
+    // main street + plaza
+    this.fill(168, g, 29, 172, g, z1 - 1, COBBLE);
+    this.fill(160, g, 28, 180, g, 38, COBBLE);
+    this.fill(170, g, 27, 172, g, 28, COBBLE);
+    // torch pedestals on the plaza
+    for (const [tx, tz] of [[162, 28], [178, 28], [162, 38], [178, 38]]) {
+      this.set(tx, g + 1, tz, COBBLE);
+      this.set(tx, g + 2, tz, EMBER);
+    }
+    // houses along the side streets
+    for (const [hx, hz] of [[159, 43], [181, 43], [157, 32], [183, 32], [163, 44], [177, 44]]) {
+      this.buildHut(hx, g, hz);
+    }
+    // throne hall — open to the sky, as the old kings liked it
+    const hx0 = 164, hx1 = 180, hz0 = 14, hz1 = 26;
+    this.fill(hx0, g, hz0, hx1, g, hz1, COBBLE);
+    for (let x = hx0; x <= hx1; x++) for (const z of [hz0, hz1]) this.fill(x, g + 1, z, x, g + 5, z, STONE);
+    for (let z = hz0; z <= hz1; z++) for (const x of [hx0, hx1]) this.fill(x, g + 1, z, x, g + 5, z, STONE);
+    this.fill(170, g + 1, hz1, 172, g + 3, hz1, AIR);          // hall doors
+    this.set(167, g + 4, hz1, BANNER);
+    this.set(175, g + 4, hz1, BANNER);
+    // the Iron Throne on its dais
+    this.fill(170, g + 1, 15, 174, g + 1, 18, COBBLE);
+    this.fill(171, g + 2, 16, 173, g + 4, 16, STONE);
+    this.set(172, g + 5, 16, BANNER);
+    this.set(171, g + 2, 17, STONE);
+    this.set(173, g + 2, 17, STONE);
+    this.set(172, g + 2, 17, COBBLE);
+    // braziers flanking the dais
+    this.set(166, g + 1, 16, COBBLE); this.set(166, g + 2, 16, EMBER);
+    this.set(178, g + 1, 16, COBBLE); this.set(178, g + 2, 16, EMBER);
+  }
+
+  openCityGate() {
+    const gate = this.cityGate;
+    if (!gate || gate.opened) return;
+    gate.opened = true;
+    for (let x = gate.x0; x <= gate.x1; x++)
+      for (let y = gate.y0; y <= gate.y1; y++) this.set(x, y, gate.z, AIR);
+    this.updateBlock(gate.x0, gate.y0, gate.z);
+    this.updateBlock(gate.x1, gate.y0, gate.z);
   }
 
   plantTrees(count, x0, z0, x1, z1) {

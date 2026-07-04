@@ -7,7 +7,12 @@
 //          → 14 recover dragonglass from the Frozen Cairn → 15 slay 3 White Walkers at night
 //          → 16 slay the Wild Dragon from dragonback → 17 return to Rodrik → 18 Dragonlord
 
-const WOLVES_NEEDED = 4, LOGS_NEEDED = 6, RAIDERS_NEEDED = 6, MEAT_NEEDED = 3, WALKERS_NEEDED = 3;
+// ACT III — 19 call the banners → 20 break the royal checkpoint → 21 burn the Kingsport
+//           gate with dragonfire → 22 storm the city → 23 duel Ser Gregor the Block
+//           → 24 confront King Joffron → 25 sit the Iron Throne → 26 Sovereign of the Blocks
+
+const WOLVES_NEEDED = 4, LOGS_NEEDED = 6, RAIDERS_NEEDED = 6, MEAT_NEEDED = 3, WALKERS_NEEDED = 3,
+      CHECKPOINT_NEEDED = 4, GARRISON_NEEDED = 8;
 
 const FLAVOR = [
   'Winter is coming, m\'lord. It always is.',
@@ -25,9 +30,11 @@ export class Quests {
     this.wolfKills = 0;
     this.raiderKills = 0;
     this.walkerKills = 0;
+    this.royalKills = 0;
   }
 
   playerTitle() {
+    if (this.stage >= 26) return 'Sovereign of the Blocks';
     if (this.stage >= 17) return 'Dragonlord of Mudford';
     if (this.stage >= 8) return 'Lord of Mudford Keep';
     if (this.stage >= 2) return 'Ser, Knight of Mudford';
@@ -57,7 +64,15 @@ export class Quests {
       case 15: return `Slay White Walkers with your dragonglass — they walk only after dark. (${this.walkerKills}/${WALKERS_NEEDED})`;
       case 16: return 'Slay the Wild Dragon circling the south-western crags. Take to the sky!';
       case 17: return 'Return to Steward Rodrik in triumph.';
-      default: return 'Act II complete — rule your skies, Dragonlord. (Act III coming soon)';
+      case 18: return 'Speak with Steward Rodrik — a raven has come from the capital.';
+      case 19: return 'Call the banners — speak with Elder Marta in the village.';
+      case 20: return `Break the royal checkpoint on the northeast road. (${this.royalKills}/${CHECKPOINT_NEEDED})`;
+      case 21: return 'Burn the gates of Kingsport with dragonfire — ride Vhagrik!';
+      case 22: return `Storm Kingsport — cut down the royal garrison. (${this.royalKills}/${GARRISON_NEEDED})`;
+      case 23: return 'Duel Ser Gregor the Block in the city plaza.';
+      case 24: return 'Enter the throne hall and confront King Joffron.';
+      case 25: return 'The hall is yours. Sit the Iron Throne.';
+      default: return 'You rule the Seven Block-Kingdoms. (Act IV: The Long Night — coming soon)';
     }
   }
 
@@ -99,6 +114,34 @@ export class Quests {
     if (type === 'dragonboss' && this.stage === 16) {
       this.game.ui.toast('THE WILD DRAGON IS SLAIN!', 'gold');
       this.setStage(17);
+    }
+    if (type === 'royal') {
+      if (this.stage === 20) {
+        this.royalKills++;
+        if (this.royalKills >= CHECKPOINT_NEEDED) {
+          this.royalKills = 0;
+          this.game.ui.toast('The checkpoint is broken — the road to Kingsport is clear!', 'gold');
+          this.setStage(21);
+        } else this.game.ui.updateTracker();
+      } else if (this.stage === 22) {
+        this.royalKills++;
+        if (this.royalKills >= GARRISON_NEEDED) {
+          this.game.ui.toast('The garrison is routed! Ser Gregor bars the plaza.', 'gold');
+          this.setStage(23);
+        } else this.game.ui.updateTracker();
+      }
+    }
+    if (type === 'gate' && this.stage === 21) {
+      this.royalKills = 0;
+      this.setStage(22);
+    }
+    if (type === 'mountain' && this.stage === 23) {
+      this.game.ui.toast('Ser Gregor the Block falls!', 'gold');
+      this.setStage(24);
+    }
+    if (type === 'king' && this.stage === 24) {
+      this.game.ui.toast('The boy king is dead. The throne stands empty...', 'gold');
+      this.setStage(25);
     }
   }
 
@@ -143,6 +186,14 @@ export class Quests {
       case 14: return npcAt('cairn') || { x: 28, z: 26 };
       case 15: return nearestEnemy('walker', { x: 90, z: 40 });
       case 16: return nearestEnemy('dragonboss', { x: 34, z: 150 });
+      case 18: return npcAt('rodrik');
+      case 19: return npcAt('marta');
+      case 20: return nearestEnemy('royal', { x: 120, z: 60 });
+      case 21: return nearestEnemy('gate', { x: 170, z: 50 });
+      case 22: return nearestEnemy('royal', { x: 170, z: 36 });
+      case 23: return nearestEnemy('mountain', { x: 170, z: 33 });
+      case 24: return npcAt('joffron') || nearestEnemy('king', { x: 172, z: 19 });
+      case 25: return npcAt('ironthrone') || { x: 172, z: 18 };
       default: return null;
     }
   }
@@ -186,8 +237,24 @@ export class Quests {
         'A wild dragon nests in the south-western crags, burning farms by night. Mount Vhagrik — press E beside him — and meet it in the sky. Your bow can wound it; dragonfire can kill it.');
       case 17: return M('The Dragonlord Returns',
         'Two dragons met above the crags, and yours flew home. Rodrik waits in the courtyard with something wrapped in oilcloth — a lord\'s reward.');
-      default: return M('Dragonlord of Mudford',
-        'The banners fly, your dragon guards the sky, and the dead fear your dagger. Rule your lands, Dragonlord — Act III will bring the march on the capital.');
+      case 18: return M('A Raven from the Capital',
+        'A raven from Kingsport, sealed in gold wax. The boy king Joffron demands Vhagrik as "tribute owed to the crown." Rodrik is already pacing.');
+      case 19: return M('Call the Banners',
+        'You cannot take a walled city alone. The village owes you its life twice over — Elder Marta will send her best if you ask.');
+      case 20: return M('The Road to Kingsport',
+        'The crown has barred the northeast road. Royal guards in gold cloaks turn back travelers — and hang those who argue. Break the checkpoint.');
+      case 21: return M('Burn the Gates',
+        'Kingsport\'s gates are ironwood bound in bronze — no blade or ram will crack them. But no gate ever built has stopped a dragon. Mount Vhagrik and burn them down.');
+      case 22: return M('Storm the City',
+        'The gate is ash and the garrison knows it. Gold cloaks hold the streets. Your allies fight beside you — cut through to the plaza.');
+      case 23: return M('The Block That Rides',
+        'Ser Gregor the Block: eight feet of plate and spite, the crown\'s executioner. He holds the plaza alone, and he does not kneel.');
+      case 24: return M('The Boy King',
+        'Joffron waits in his open-roofed hall, all crown and no courage. Walk in and take what the realm already whispers is yours.');
+      case 25: return M('The Iron Throne',
+        'A thousand blocky swords, hammered flat by dragonfire three hundred years ago. Every ruler who mattered sat here. Your turn.');
+      default: return M('Sovereign of the Blocks',
+        'The Seven Block-Kingdoms are yours — keep, village, and capital. But the nights grow longer, and the dead grow bolder. Act IV: The Long Night is coming.');
     }
   }
 
@@ -222,8 +289,12 @@ export class Quests {
             this.setStage(18);
             this.game.onActTwoComplete();
           } });
-        case 18: return d('The banners fly for you, Dragonlord. Act III will bring the march on the capital — when you are ready.');
+        case 18: return d(
+          'A raven from Kingsport, my lord — gold wax, the king\'s own seal. The boy king Joffron demands Vhagrik as "tribute owed to the crown." He names you rebel and dragon-thief. My lord... the realm groans under that child. Perhaps it is time someone took the capital from him.',
+          { label: 'Then we march on Kingsport.', fn: () => this.setStage(19) });
+        case 26: return d('Long may you reign, Your Grace. Mudford Keep to Kingsport — who\'d have believed it? Rest now... though the maesters write that the nights grow longer.');
         default:
+          if (this.stage >= 19) return d('The realm watches, Your Grace-to-be. The beacon marks the way to Kingsport.');
           if (this.stage >= 9) return d('The realm holds its breath, my lord. See to your quest — the beacon marks the way.');
           return d('Elder Marta awaits you in the village to the east, ser.');
       }
@@ -243,6 +314,14 @@ export class Quests {
             this.game.entities.addAlly('snow');
             this.game.ui.toast('+30 gold · Snow the direwolf joins you!', 'gold');
             this.setStage(4);
+          } });
+        case 19: return d(
+          'March on the capital, is it? Gods be good... The village owes you its goats, its walls, and half its children\'s names. Captain Orso fought in three wars before he took up farming — he\'s yours, and every able hand behind him.',
+          { label: 'Kingsport falls together. (Captain Orso joins)', fn: () => {
+            this.game.entities.addAlly('orso');
+            this.game.ui.toast('Captain Orso joins you!', 'gold');
+            this.game.ui.toast('Royal guards hold a checkpoint on the northeast road.');
+            this.setStage(20);
           } });
         default: return d('The village stands with Mudford Keep, m\'lord. Always.');
       }
@@ -309,6 +388,28 @@ export class Quests {
           this.game.grantWeapon('dagger');
           this.game.ui.toast('It can slay White Walkers.', 'gold');
           this.setStage(15);
+        } });
+    }
+
+    if (npc.id === 'joffron') {
+      return d(
+        'You. The pig-farmer with a lizard. I am your KING! I\'ll have your head on a spike and your dragon in chains — Mother said I could keep it. GUARDS! GUARDS, SEIZE THE PEASANT!',
+        { label: 'The throne is mine, Joffron.', fn: () => {
+          this.game.entities.removeNpc('joffron');
+          this.game.entities.addEnemy('king', 172.5, 20.5);
+          this.game.entities.addEnemy('royal', 169.5, 19.5);
+          this.game.entities.addEnemy('royal', 175.5, 19.5);
+          this.game.ui.toast('King Joffron and his kingsguard attack!');
+        } });
+    }
+
+    if (npc.id === 'ironthrone') {
+      return d(
+        'A thousand blocky swords, beaten flat by dragonfire three hundred years ago. It is uglier up close, and colder. The hall is silent. Vhagrik circles overhead. Somewhere below, the city waits to learn its fate.',
+        { label: 'Take your seat.', fn: () => {
+          this.game.entities.removeNpc('ironthrone');
+          this.setStage(26);
+          this.game.onActThreeComplete();
         } });
     }
 
