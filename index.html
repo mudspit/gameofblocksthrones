@@ -146,7 +146,21 @@
     background: #3a2c18; color: #e8dcc0; border: 1px solid #d4af37; border-radius: 3px;
   }
   #deathScreen h1 { color: #b03030; }
-  #pauseHint { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); color: #e8dcc0; font-size: 20px; letter-spacing: 2px; }
+  #pauseHint { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); color: #e8dcc0; }
+  #pauseMenu { padding: 26px 34px; text-align: center; min-width: 300px; }
+  #pauseMsg { font-size: 20px; letter-spacing: 3px; color: #d4af37; margin-bottom: 18px; }
+  #pauseMenu button {
+    display: block; width: 100%; font-family: inherit; font-size: 16px; letter-spacing: 2px;
+    padding: 12px 24px; margin-top: 10px; cursor: pointer;
+    background: #3a2c18; color: #e8dcc0; border: 1px solid #6b5a35; border-radius: 3px;
+  }
+  #pauseMenu button:hover { border-color: #d4af37; background: #57431f; }
+  #menuBtn {
+    position: fixed; right: 190px; bottom: 16px; z-index: 10; padding: 10px 14px;
+    font-size: 15px; cursor: pointer; display: none; color: #e8dcc0;
+  }
+  #menuBtn:hover { border-color: #d4af37; }
+  .touch #menuBtn { bottom: unset; top: 64px; right: 172px; padding: 8px 12px; }
 
   #controlsBar {
     position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 8;
@@ -329,6 +343,7 @@
     <div id="btnTorch" class="tbtn">🔥</div>
   </div>
   <div id="muteBtn" class="panel" title="Sound on/off">🔊</div>
+  <div id="menuBtn" class="panel" title="Pause menu — save &amp; exit">⏸ Menu</div>
 
   <div id="toasts"></div>
   <div id="crosshair">+</div>
@@ -347,7 +362,13 @@
     <button id="victoryBtn">CONTINUE RULING YOUR LANDS</button>
   </div>
 
-  <div id="pauseHint"><div>— PAUSED — click to resume</div></div>
+  <div id="pauseHint">
+    <div id="pauseMenu" class="panel">
+      <div id="pauseMsg">— PAUSED —</div>
+      <button id="resumeBtn">RESUME</button>
+      <button id="saveExitBtn">SAVE &amp; EXIT TO TITLE</button>
+    </div>
+  </div>
 
   <div id="mapBtn" class="panel">🗺 Map <span style="opacity:0.6">[M]</span></div>
 

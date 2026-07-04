@@ -14,9 +14,10 @@ export class UI {
     this.dialogueOpen = false;
     this.mapOpen = false;
     this.missionOpen = false;
+    this.menuOpen = false;
   }
 
-  anyPanelOpen() { return this.dialogueOpen || this.mapOpen || this.missionOpen; }
+  anyPanelOpen() { return this.dialogueOpen || this.mapOpen || this.missionOpen || this.menuOpen; }
 
   showGameUI() {
     this.el.title.style.display = 'none';
@@ -24,6 +25,7 @@ export class UI {
       this.el[id].style.display = 'block';
     }
     document.getElementById('muteBtn').style.display = 'block';
+    document.getElementById('menuBtn').style.display = 'block';
     this.updateHud();
     this.updateTracker();
   }
@@ -233,6 +235,7 @@ export class UI {
   }
 
   setPaused(paused) {
+    this.menuOpen = paused;
     this.el.pauseHint.style.display = paused ? 'flex' : 'none';
   }
 }

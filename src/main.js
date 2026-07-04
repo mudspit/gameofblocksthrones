@@ -344,8 +344,9 @@ function lockFailed() {
   if (!lockEverWorked) { enableFallback(); return; }
   // It worked before — this is the browser's short cooldown after Escape.
   // Stay paused; the player's next click is the gesture that relocks.
-  const hint = document.querySelector('#pauseHint div');
-  if (hint) hint.textContent = '— PAUSED — click to resume —';
+  ui.setPaused(true);
+  const msg = document.getElementById('pauseMsg');
+  if (msg) msg.textContent = '— PAUSED — click Resume —';
 }
 function tryLock() {
   if (usingFallback) return;
@@ -509,8 +510,8 @@ document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === renderer.domElement;
   if (locked) {
     lockEverWorked = true;
-    const hint = document.querySelector('#pauseHint div');
-    if (hint) hint.textContent = '— PAUSED — click to resume';
+    const msg = document.getElementById('pauseMsg');
+    if (msg) msg.textContent = '— PAUSED —';
   }
   if (started && !usingFallback) ui.setPaused(!locked && !ui.anyPanelOpen() &&
     document.getElementById('victory').style.display !== 'flex' &&
@@ -521,9 +522,37 @@ renderer.domElement.addEventListener('click', () => {
   if (started && !locked && !usingFallback && !ui.anyPanelOpen()) tryLock();
 });
 
-// the pause overlay covers the whole screen — clicking it must resume too
-document.getElementById('pauseHint').addEventListener('click', () => {
-  if (started && !locked && !usingFallback && !ui.anyPanelOpen()) tryLock();
+// ---------- pause menu (Escape / ⏸ button): resume or save & exit ----------
+function openMenu() {
+  if (!started || player.dead) return;
+  if (ui.anyPanelOpen() && !ui.menuOpen) return;
+  if (locked) { document.exitPointerLock(); return; } // pointerlockchange shows the menu
+  ui.setPaused(true);
+}
+function closeMenu() {
+  ui.setPaused(false);
+  if (!usingFallback && !ui.anyPanelOpen() &&
+      document.getElementById('victory').style.display !== 'flex' && !player.dead) {
+    tryLock();
+  }
+}
+document.getElementById('menuBtn').addEventListener('click', () => {
+  game.audio.play('ui');
+  ui.menuOpen ? closeMenu() : openMenu();
+});
+document.getElementById('resumeBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  closeMenu();
+});
+document.getElementById('saveExitBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  saveSys.save();
+  window.location.reload(); // back to the title screen, where CONTINUE resumes this game
+});
+// clicking the dimmed background also resumes
+document.getElementById('pauseHint').addEventListener('click', (e) => {
+  if (e.target.closest('#pauseMenu')) return;
+  if (started && ui.menuOpen) closeMenu();
 });
 
 document.addEventListener('mousemove', (e) => {
@@ -552,9 +581,11 @@ document.addEventListener('keydown', (e) => {
     if (ui.missionOpen) closeMission();
     toggleMap();
   }
-  if (e.code === 'Escape' && (ui.mapOpen || ui.missionOpen)) {
+  if (e.code === 'Escape') {
     if (ui.mapOpen) closeMap();
-    if (ui.missionOpen) closeMission();
+    else if (ui.missionOpen) closeMission();
+    else if (started && usingFallback) { ui.menuOpen ? closeMenu() : openMenu(); }
+    // in pointer-lock mode the browser exits the lock itself, which opens the menu
   }
   if (e.code === 'Space') e.preventDefault();
 });
