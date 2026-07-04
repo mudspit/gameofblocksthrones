@@ -83,14 +83,20 @@ export class Player {
       return;
     }
 
-    // input → horizontal velocity
+    // input → horizontal velocity (keyboard, or analog joystick on touch)
     let fx = 0, fz = 0;
     if (this.keys['KeyW']) fz += 1;
     if (this.keys['KeyS']) fz -= 1;
     if (this.keys['KeyA']) fx -= 1;
     if (this.keys['KeyD']) fx += 1;
+    const touch = this.game.touch;
+    let sprint = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
+    if (touch && touch.active) {
+      fx = touch.move.x; fz = touch.move.y;
+      sprint = sprint || touch.sprint;
+    }
     const len = Math.hypot(fx, fz);
-    let speed = (this.keys['ShiftLeft'] || this.keys['ShiftRight']) ? SPRINT : WALK;
+    let speed = sprint ? SPRINT : WALK;
     if (this.mount === 'horse') speed *= 1.9;
     const inWater = world.get(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.5), Math.floor(this.pos.z)) === WATER;
     const eff = inWater ? speed * 0.5 : speed;
@@ -135,14 +141,20 @@ export class Player {
     const sinY = Math.sin(this.yaw), cosY = Math.cos(this.yaw);
     const cosP = Math.cos(this.pitch), sinP = Math.sin(this.pitch);
     const fwd = { x: -sinY * cosP, y: sinP, z: -cosY * cosP };
+    const touch = this.game.touch;
+    const tm = touch && touch.active ? touch.move : null;
+    const W = this.keys['KeyW'] || (tm && tm.y > 0.25);
+    const S = this.keys['KeyS'] || (tm && tm.y < -0.25);
+    const A = this.keys['KeyA'] || (tm && tm.x < -0.4);
+    const D = this.keys['KeyD'] || (tm && tm.x > 0.4);
     let vx = 0, vy = 0, vz = 0;
-    if (this.keys['KeyW']) { vx += fwd.x * FLY; vy += fwd.y * FLY; vz += fwd.z * FLY; }
-    if (this.keys['KeyS']) { vx -= fwd.x * FLY * 0.5; vy -= fwd.y * FLY * 0.5; vz -= fwd.z * FLY * 0.5; }
-    if (this.keys['KeyA']) { vx += -cosY * FLY * 0.6; vz += sinY * FLY * 0.6; }
-    if (this.keys['KeyD']) { vx += cosY * FLY * 0.6; vz += -sinY * FLY * 0.6; }
+    if (W) { vx += fwd.x * FLY; vy += fwd.y * FLY; vz += fwd.z * FLY; }
+    if (S) { vx -= fwd.x * FLY * 0.5; vy -= fwd.y * FLY * 0.5; vz -= fwd.z * FLY * 0.5; }
+    if (A) { vx += -cosY * FLY * 0.6; vz += sinY * FLY * 0.6; }
+    if (D) { vx += cosY * FLY * 0.6; vz += -sinY * FLY * 0.6; }
     if (this.keys['Space']) vy += 9;
     // gentle hover sink so landing is possible by easing off
-    if (!this.keys['KeyW'] && !this.keys['Space']) vy -= 2.5;
+    if (!W && !this.keys['Space']) vy -= 2.5;
     this.vel.set(vx, vy, vz);
     this.onGround = false;
     this.pos.x += this.vel.x * dt; this.collide('x');

@@ -5,6 +5,7 @@ import { Entities } from './entities.js';
 import { Quests } from './quests.js';
 import { UI } from './ui.js';
 import { SaveSystem } from './save.js';
+import { initTouch } from './touch.js';
 
 const DAY_LENGTH = 300; // seconds per full day/night cycle
 
@@ -13,7 +14,8 @@ const game = {};
 // ---------- renderer / scene ----------
 const renderer = new THREE.WebGLRenderer({ antialias: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const coarse = matchMedia('(pointer: coarse)').matches;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -292,10 +294,12 @@ function enableFallback() {
   if (usingFallback) return;
   usingFallback = true;
   ui.setPaused(false);
-  ui.toast('Pointer lock unavailable — free-mouse mode: just move the mouse to look.');
+  if (game.isTouch) ui.toast('Touch controls: left thumb moves, right thumb looks.');
+  else ui.toast('Pointer lock unavailable — free-mouse mode: just move the mouse to look.');
 }
 function tryLock() {
   if (usingFallback) return;
+  if (game.isTouch) { enableFallback(); return; }
   try {
     const p = renderer.domElement.requestPointerLock();
     if (p && typeof p.catch === 'function') p.catch(() => enableFallback());
@@ -390,6 +394,9 @@ beginBtn.addEventListener('click', () => {
   saveSys.createOrSelect(name);
   started = true;
   ui.showGameUI();
+  if (game.isTouch && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
   if (saveSys.hasSave()) {
     if (saveSys.load()) ui.toast(`Welcome back, ${name}. Your watch continues.`, 'gold');
   } else {
@@ -438,11 +445,7 @@ document.addEventListener('keydown', (e) => {
     if (e.code === 'Digit5') switchWeapon(4);
     if (e.code === 'KeyQ') useBandage();
     if (e.code === 'KeyF') useKit();
-    if (e.code === 'KeyH' && entities.horse && !entities.horse.mounted && !player.mount) {
-      const h = entities.horse;
-      h.pos.set(player.pos.x + 1.5, player.pos.y, player.pos.z + 1.5);
-      ui.toast('Old Thunder trots to your side.');
-    }
+    if (e.code === 'KeyH') whistleHorse();
   }
   if (e.code === 'KeyM' && started && !ui.dialogueOpen) {
     if (ui.missionOpen) closeMission();
@@ -518,6 +521,13 @@ function attack() {
       ui.updateHud();
     }
   }
+}
+
+function whistleHorse() {
+  if (!entities.horse || entities.horse.mounted || player.mount) return;
+  const h = entities.horse;
+  h.pos.set(player.pos.x + 1.5, player.pos.y, player.pos.z + 1.5);
+  ui.toast('Old Thunder trots to your side.');
 }
 
 // ---------- healing ----------
@@ -648,6 +658,17 @@ function updateDayNight(dt) {
 game.dayAmount = 1;
 
 // ---------- main loop ----------
+// ---------- touch controls ----------
+initTouch(game, {
+  attack: () => { if (started && !ui.anyPanelOpen() && !player.dead) attack(); },
+  placeBlock: () => { if (started && !ui.anyPanelOpen() && !player.dead) placeBlock(); },
+  interact: () => { if (started && !ui.anyPanelOpen() && !player.dead) tryInteract(); },
+  cycleWeapon: () => { if (started) switchWeapon((player.weaponIdx + 1) % player.weapons.length); },
+  useBandage: () => { if (started) useBandage(); },
+  useKit: () => { if (started) useKit(); },
+  whistle: () => { if (started) whistleHorse(); },
+});
+
 window.game = game; // debug/testing handle
 
 const clock = new THREE.Clock();
@@ -658,6 +679,7 @@ function loop() {
   if (started) updateBeacon(elapsed);
 
   if (started && !ui.anyPanelOpen() && (locked || usingFallback || player.dead)) {
+    if (game.touch && game.touch.attackHeld && !player.dead) attack(); // hold-to-swing on touch
     player.update(dt);
     entities.update(dt);
     saveSys.update(dt);
