@@ -702,7 +702,31 @@ function whistleHorse() {
 function useBandage() {
   if (player.dead) return;
   if (player.bandages <= 0) { ui.toast('No bandages — bandits and raiders drop them, or search the land.'); return; }
-  if (player.hp >= player.maxHp) { ui.toast('You are unhurt.'); return; }
+  // a downed ally beside you always takes priority; a hurt one only if worse off than you
+  const pFrac = player.hp / player.maxHp;
+  let target = null, td = 3.5;
+  for (const a of entities.allies) {
+    if (!a.downed && (a.hp >= a.maxHp - 0.5 || a.hp / a.maxHp >= pFrac)) continue;
+    const d = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z);
+    if (d < td) { td = d; target = a; }
+  }
+  if (target) {
+    player.bandages--;
+    game.audio.play('heal');
+    if (target.downed) {
+      target.downed = false;
+      target.reviveT = 0;
+      target.hp = Math.round(target.maxHp * 0.5);
+      target.group.rotation.z = 0;
+      ui.toast(`You bind ${target.name}'s wounds — back on their feet!`, 'gold');
+    } else {
+      target.hp = Math.min(target.maxHp, target.hp + 40);
+      ui.toast(`Bandaged ${target.name} — +40 health.`, 'gold');
+    }
+    ui.updateHud();
+    return;
+  }
+  if (player.hp >= player.maxHp) { ui.toast('You are unhurt, and no ally needs binding.'); return; }
   player.bandages--;
   player.hp = Math.min(player.maxHp, player.hp + 30);
   game.audio.play('heal');
@@ -763,7 +787,7 @@ function tryInteract() {
     const dd = dgn ? Math.hypot(dgn.pos.x - player.pos.x, dgn.pos.z - player.pos.z) : Infinity;
     const hd = (h && !h.mounted) ? Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) : Infinity;
     if (hd < 3.5 && hd <= dd) { mountHorse(); return; }
-    if (dd < 4.5) {
+    if (dd < 6.5) {
       if (quests.stage === 13 && dgn.state === 'hatchling') {
         if (player.meat >= 3) {
           player.meat -= 3;
@@ -782,6 +806,8 @@ function tryInteract() {
       return;
     }
     if (hd < 3.5) { mountHorse(); return; }
+    // E found nothing — nudge the player instead of silence
+    if (dgn && dd < 14) { ui.toast('Move closer to Vhagrik and press E.'); return; }
   }
 
   const npc = entities.nearestNpc(player.pos, 3.4);
@@ -859,7 +885,7 @@ function loop() {
       const hd = (h && !h.mounted) ? Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) : Infinity;
       if (hd < 3.5 && hd <= dd) {
         ui.showInteractHint('', '[E]  Ride Old Thunder');
-      } else if (dd < 4.5) {
+      } else if (dd < 6.5) {
         ui.showInteractHint('', dgn.state === 'grown' ? '[E]  Ride Vhagrik' :
           (quests.stage === 13 ? '[E]  Feed Vhagrik' : '[E]  Pet Vhagrik'));
       } else if (hd < 3.5) {

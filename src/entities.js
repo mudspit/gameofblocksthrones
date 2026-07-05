@@ -450,11 +450,36 @@ export class Entities {
     const label = makeLabel(def.label + ' (ally)', def.labelColor);
     label.position.y = id === 'snow' ? 1.3 : 2.2;
     group.add(label);
+    // health bar above the name — only shows when hurt
+    const barCanvas = document.createElement('canvas');
+    barCanvas.width = 64; barCanvas.height = 10;
+    const barTex = new THREE.CanvasTexture(barCanvas);
+    const barSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: barTex, depthTest: false }));
+    barSpr.scale.set(1.5, 0.22, 1);
+    barSpr.position.y = label.position.y + 0.4;
+    barSpr.visible = false;
+    group.add(barSpr);
     this.game.scene.add(group);
     this.allies.push({
-      id, group, pos: group.position, hp: def.hp, maxHp: def.hp,
+      id, name: def.label, group, pos: group.position, hp: def.hp, maxHp: def.hp,
       dmg: def.dmg, speed: def.speed, attackCd: 0, downed: false, reviveT: 0,
+      bar: { canvas: barCanvas, tex: barTex, spr: barSpr },
     });
+  }
+
+  drawAllyBar(a) {
+    const frac = a.downed ? Math.max(0, 1 - a.reviveT / 18) : Math.max(0, a.hp / a.maxHp);
+    a.bar.spr.visible = a.downed || a.hp < a.maxHp - 0.5;
+    if (!a.bar.spr.visible) return;
+    if (a._barFrac !== undefined && Math.abs(a._barFrac - frac) < 0.02 && a._barDown === a.downed) return;
+    a._barFrac = frac; a._barDown = a.downed;
+    const g = a.bar.canvas.getContext('2d');
+    g.clearRect(0, 0, 64, 10);
+    g.fillStyle = 'rgba(10,8,6,0.85)';
+    g.fillRect(0, 0, 64, 10);
+    g.fillStyle = a.downed ? '#b8a830' : (frac > 0.5 ? '#4a9a3a' : frac > 0.25 ? '#c9a227' : '#b03030');
+    g.fillRect(1, 1, 62 * frac, 8);
+    a.bar.tex.needsUpdate = true;
   }
 
   // ---------- world pickups ----------
@@ -929,6 +954,7 @@ export class Entities {
 
   updateAllies(dt, p) {
     for (const a of this.allies) {
+      this.drawAllyBar(a);
       if (a.downed) {
         a.reviveT -= dt;
         if (a.reviveT <= 0) {
@@ -964,6 +990,8 @@ export class Entities {
           this.hitEnemy(foe, a.dmg, 'ally');
         }
       } else {
+        // out of combat: slow recovery
+        a.hp = Math.min(a.maxHp, a.hp + 2 * dt);
         const dx = p.pos.x - a.pos.x, dz = p.pos.z - a.pos.z;
         const d = Math.hypot(dx, dz);
         if (d > 40) { a.pos.set(p.pos.x + 2, p.pos.y, p.pos.z + 2); }
@@ -990,7 +1018,7 @@ export class Entities {
     const dist = Math.hypot(dx, dz);
     let moving = false;
     if (dist > 60) d.pos.set(p.pos.x + 3, p.pos.y, p.pos.z + 3);
-    else if (dist > (grown ? 7 : 4)) {
+    else if (dist > (grown ? 4.5 : 4)) {
       const sp = grown ? 9 : 4.5;
       d.pos.x += (dx / dist) * sp * dt;
       d.pos.z += (dz / dist) * sp * dt;
@@ -998,7 +1026,10 @@ export class Entities {
       moving = true;
     }
     const gy = this.groundY(d.pos.x, d.pos.z);
-    const targetY = grown ? gy + 4 + Math.sin(this.time * 1.4) * 0.6 : gy;
+    // a grown dragon lands beside you so you can mount; flies when you're away
+    const targetY = grown
+      ? (dist < 9 ? gy + 0.4 : gy + 4 + Math.sin(this.time * 1.4) * 0.6)
+      : gy;
     d.pos.y += (targetY - d.pos.y) * Math.min(1, dt * 4);
     if (grown) this.flapWings(d.group, 5);
     else this.walkAnim(d.group, moving);
