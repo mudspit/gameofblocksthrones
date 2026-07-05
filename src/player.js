@@ -146,18 +146,19 @@ export class Player {
     const fwd = { x: -sinY * cosP, y: sinP, z: -cosY * cosP };
     const touch = this.game.touch;
     const tm = touch && touch.active ? touch.move : null;
-    const W = this.keys['KeyW'] || (tm && tm.y > 0.25);
-    const S = this.keys['KeyS'] || (tm && tm.y < -0.25);
-    const A = this.keys['KeyA'] || (tm && tm.x < -0.4);
-    const D = this.keys['KeyD'] || (tm && tm.x > 0.4);
+    // NOTE: do not name these W/D — those are the imported world dimensions
+    const fwdKey = this.keys['KeyW'] || (tm && tm.y > 0.25);
+    const backKey = this.keys['KeyS'] || (tm && tm.y < -0.25);
+    const leftKey = this.keys['KeyA'] || (tm && tm.x < -0.4);
+    const rightKey = this.keys['KeyD'] || (tm && tm.x > 0.4);
     let vx = 0, vy = 0, vz = 0;
-    if (W) { vx += fwd.x * FLY; vy += fwd.y * FLY; vz += fwd.z * FLY; }
-    if (S) { vx -= fwd.x * FLY * 0.5; vy -= fwd.y * FLY * 0.5; vz -= fwd.z * FLY * 0.5; }
-    if (A) { vx += -cosY * FLY * 0.6; vz += sinY * FLY * 0.6; }
-    if (D) { vx += cosY * FLY * 0.6; vz += -sinY * FLY * 0.6; }
+    if (fwdKey) { vx += fwd.x * FLY; vy += fwd.y * FLY; vz += fwd.z * FLY; }
+    if (backKey) { vx -= fwd.x * FLY * 0.5; vy -= fwd.y * FLY * 0.5; vz -= fwd.z * FLY * 0.5; }
+    if (leftKey) { vx += -cosY * FLY * 0.6; vz += sinY * FLY * 0.6; }
+    if (rightKey) { vx += cosY * FLY * 0.6; vz += -sinY * FLY * 0.6; }
     if (this.keys['Space']) vy += 9;
     // gentle hover sink so landing is possible by easing off
-    if (!W && !this.keys['Space']) vy -= 2.5;
+    if (!fwdKey && !this.keys['Space']) vy -= 2.5;
     this.vel.set(vx, vy, vz);
     this.onGround = false;
     this.pos.x += this.vel.x * dt; this.collide('x');
