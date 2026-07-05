@@ -288,6 +288,49 @@ game.onStageChanged = (s) => {
   if (s === 24) entities.addNpc('joffron', 'King Joffron', 172.5, 19.5, { shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0,
     face: { hair: '#e8d070' }, gear: { crown: true } });
   if (s === 25) entities.addProp('ironthrone', 'The Iron Throne', 172.5, 18.5, 0x8a8a92);
+  // --- Act IV: The Long Night ---
+  if (s === 28) {
+    // the dead assault Mudford Keep from all sides
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      const type = i % 7 === 0 ? 'walker' : 'wight';
+      const e = entities.addEnemy(type, 52 + Math.cos(a) * 28, 100 + Math.sin(a) * 28);
+      e.aggroed = true;
+      e.assault = true;
+    }
+    game.audio.play('night');
+  }
+  if (s === 29) {
+    entities.addEnemy('iceheart', 30.5, 20.5);
+    entities.addEnemy('iceheart', 96.5, 14.5);
+    entities.addEnemy('iceheart', 148.5, 8.5);
+  }
+  if (s === 30) {
+    const ud = entities.addEnemy('undeaddragon', 30.5, 24.5);
+    ud.lair = { x: 30, z: 24 };
+  }
+  if (s === 31) {
+    const nk = entities.addEnemy('nightking', 52.5, 130.5);
+    nk.aggroed = true;
+    nk.assault = true;
+    for (const [x, z] of [[48, 128], [56, 128], [50, 133], [54, 133]]) {
+      const w = entities.addEnemy('wight', x + 0.5, z + 0.5);
+      w.aggroed = true;
+      w.assault = true;
+    }
+    game.audio.play('night');
+  }
+};
+
+game.onActFourComplete = () => {
+  document.exitPointerLock();
+  game.audio.play('fanfare');
+  ui.showVictory({ level: player.level, gold: player.gold }, () => { game.tryLock(); }, {
+    title: 'THE DAWN',
+    text: `The Night King is shattered, his army is dust, and the sun rises on a realm that owes you everything. ` +
+          `Hedge knight, lord, dragonlord, sovereign — and now the Dawn itself. Level ${player.level} · ${player.gold} gold. ` +
+          `You have finished Game of Blocks Thrones. The realm — and its long, gentle mornings — are yours forever.`
+  });
 };
 
 game.onActThreeComplete = () => {
@@ -471,7 +514,7 @@ function refreshAccountUI() {
     const chip = document.createElement('span');
     chip.className = 'profile-chip';
     const hasSave = !!all[name].save;
-    chip.textContent = hasSave ? `${name} · ${['Hedge Knight','Knight','Lord','Dragonlord','Sovereign'][all[name].save.stage >= 26 ? 4 : all[name].save.stage >= 17 ? 3 : all[name].save.stage >= 8 ? 2 : all[name].save.stage >= 2 ? 1 : 0]}` : name;
+    chip.textContent = hasSave ? `${name} · ${['Hedge Knight','Knight','Lord','Dragonlord','Sovereign','Dawnbringer'][all[name].save.stage >= 33 ? 5 : all[name].save.stage >= 26 ? 4 : all[name].save.stage >= 17 ? 3 : all[name].save.stage >= 8 ? 2 : all[name].save.stage >= 2 ? 1 : 0]}` : name;
     chip.title = hasSave ? 'Continue this game' : 'New game';
     chip.onclick = () => {
       accountName.value = name;
@@ -732,6 +775,7 @@ function placeAt(blockId, cost) {
   } else {
     world.placed.push({ x, y, z, id: blockId });
   }
+  quests.onBuild(x, z, blockId === TORCH);
   ui.updateHud();
 }
 

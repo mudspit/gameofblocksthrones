@@ -241,7 +241,7 @@ function makeHorse() {
   return g;
 }
 
-export function makeDragon(scale, bodyColor, wingColor) {
+export function makeDragon(scale, bodyColor, wingColor, eyeColor = 0xffb020) {
   const g = new THREE.Group();
   const body = box(1.5, 1.0, 2.6, bodyColor); body.position.y = 1.3;
   const neck = box(0.55, 0.55, 1.0, bodyColor); neck.position.set(0, 1.8, 1.6);
@@ -289,7 +289,7 @@ export function makeDragon(scale, bodyColor, wingColor) {
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(
       new THREE.BoxGeometry(0.1, 0.09, 0.03),
-      new THREE.MeshBasicMaterial({ color: 0xffb020 })
+      new THREE.MeshBasicMaterial({ color: eyeColor })
     );
     eye.position.set(side * 0.2, 2.22, 2.91);
     g.add(eye);
@@ -346,6 +346,10 @@ const ENEMY_DEFS = {
   daeneris: { hp: 260, dmg: 18, speed: 3.4, aggro: 30, leash: 999, gold: 320, xp: 400, label: 'Daeneris Stormborn', labelColor: '#c8e0ff', fireRange: 25 },
   hound:    { hp: 420, dmg: 28, speed: 3.1, aggro: 30, leash: 999, gold: 280, xp: 420, label: 'Sandor the Burned', labelColor: '#d0b090' },
   jaime:    { hp: 280, dmg: 30, speed: 4.3, aggro: 30, leash: 999, gold: 350, xp: 400, label: 'Ser Jaime the Golden', labelColor: '#ffe090' },
+  // Act IV — The Long Night
+  iceheart:    { hp: 220, dmg: 0,  speed: 0,   aggro: 0,  leash: 1,   gold: 40,   xp: 150,  label: 'Ice Heart', labelColor: '#9ae8ff' },
+  undeaddragon: { hp: 420, dmg: 24, speed: 0,  aggro: 48, leash: 999, gold: 350,  xp: 600,  label: 'The Undead Dragon', labelColor: '#8ad0e8', boltKind: 'ice', boltDmg: 26 },
+  nightking:   { hp: 500, dmg: 30, speed: 3.2, aggro: 40, leash: 999, gold: 1000, xp: 1000, label: 'The Night King', labelColor: '#8af0ff', undead: true, fireRange: 20, boltKind: 'ice', boltDmg: 22 },
 };
 
 const BOSS_BARS = {
@@ -356,6 +360,7 @@ const BOSS_BARS = {
   daeneris: 'DAENERIS STORMBORN',
   hound: 'SANDOR THE BURNED',
   jaime: 'THE KINGSLAYER',
+  nightking: 'THE NIGHT KING',
 };
 
 const ALLY_DEFS = {
@@ -455,24 +460,54 @@ export class Entities {
       brace.position.y = 1.6;
       group.add(brace);
     }
+    else if (type === 'iceheart') {
+      group = new THREE.Group();
+      const glow = (w, h, d, yy) => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ color: 0x66d8ff }));
+        m.position.y = yy;
+        group.add(m);
+      };
+      glow(1.2, 0.5, 1.2, 0.25);
+      glow(0.7, 1.4, 0.7, 1.1);
+      glow(0.35, 0.9, 0.35, 2.2);
+    }
+    else if (type === 'undeaddragon') group = makeDragon(1.4, 0x9ab8c8, 0x3a4a55, 0x66d8ff);
+    else if (type === 'nightking') {
+      group = makeHumanoid({ shirt: 0x1a2830, pants: 0x14202a, skin: 0xbfe0e8, scale: 1.3,
+        face: { undead: '#8af0ff', brows: true }, gear: { weapon: 'ice' } });
+      // crown of ice
+      for (const [dx, dz] of [[-0.15, 0.12], [0.15, 0.12], [-0.15, -0.12], [0.15, -0.12], [0, 0]]) {
+        const spike = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.06), new THREE.MeshBasicMaterial({ color: 0x9ae8ff }));
+        spike.position.set(dx, 1.9, dz);
+        group.add(spike);
+      }
+    }
     else if (LEGEND_NAMES[type]) group = makeLegend(type);
     else group = makeHumanoid({ shirt: 0x704214, pants: 0x3d3d3d, skin: 0xc99b71,
       face: { beard: '#3a2a1a', brows: true }, gear: { weapon: 'sword' } });
-    group.position.set(x, type === 'dragonboss' ? y + 13 : y, z);
-    const label = makeLabel(type === 'gate' ? 'Kingsport Gate — dragonfire!' : def.label, def.labelColor);
+    const flier = type === 'dragonboss' || type === 'undeaddragon';
+    group.position.set(x, flier ? y + 13 : y, z);
+    const label = makeLabel(
+      type === 'gate' ? 'Kingsport Gate — dragonfire!' :
+      (type === 'iceheart' ? 'Ice Heart — dragonfire!' : def.label), def.labelColor);
     label.position.y = type === 'wolf' || type === 'boar' ? 1.3 :
-      (type === 'boss' || type === 'walker' ? 2.9 :
-      (type === 'dragonboss' ? 4.5 :
-      (type === 'mountain' ? 3.4 : (type === 'gate' ? 3.6 : 2.2))));
+      (type === 'boss' || type === 'walker' || type === 'nightking' ? 2.9 :
+      (flier ? 4.5 :
+      (type === 'mountain' ? 3.4 : (type === 'gate' || type === 'iceheart' ? 3.6 : 2.2))));
     group.add(label);
     this.game.scene.add(group);
+    // the realm hardens as your legend grows: enemies scale with campaign progress
+    const diff = 1 + Math.max(0, (this.game.quests ? this.game.quests.stage : 0) - 8) * 0.03;
     const e = {
       type, group, pos: group.position,
-      hp: def.hp, maxHp: def.hp, dmg: def.dmg, speed: def.speed, aggro: def.aggro,
+      hp: Math.round(def.hp * diff), maxHp: Math.round(def.hp * diff),
+      dmg: Math.round(def.dmg * diff), speed: def.speed, aggro: def.aggro,
       leash: def.leash, gold: def.gold, xp: def.xp, undead: !!def.undead,
       spawnPos: new THREE.Vector3(x, y, z),
       attackCd: 0, hitFlash: 0, dead: false, deathT: 0, aggroed: false,
       isNight, circleT: Math.random() * 6.28, fireCd: 0, fireRange: def.fireRange || 0,
+      boltKind: def.boltKind || 'efire', boltDmg: Math.round((def.boltDmg || 16) * diff),
+      summonCd: 8,
     };
     this.enemies.push(e);
     return e;
@@ -636,16 +671,18 @@ export class Entities {
   hitEnemy(e, dmg, source, knockDir = null) {
     if (e.dead) return false;
     const anti = source === 'dagger' || source === 'fire' || source === 'valyrian';
-    if (e.type === 'gate' && source !== 'fire') {
+    if ((e.type === 'gate' || e.type === 'iceheart') && source !== 'fire') {
       if (this.hintCd <= 0) {
-        this.game.ui.toast('Ironwood bound in bronze — only dragonfire can burn it. Ride Vhagrik!');
+        this.game.ui.toast(e.type === 'gate'
+          ? 'Ironwood bound in bronze — only dragonfire can burn it. Ride Vhagrik!'
+          : 'The Ice Heart drinks your blows — only dragonfire can melt it!');
         this.hintCd = 3;
       }
       this.game.audio?.play('clink');
       e.aggroed = true;
       return true;
     }
-    if (e.type === 'walker' && !anti) {
+    if ((e.type === 'walker' || e.type === 'nightking') && !anti) {
       if (this.hintCd <= 0) {
         this.game.ui.toast('Your steel cannot bite the cold ones — you need dragonglass or dragonfire!');
         this.hintCd = 3;
@@ -728,7 +765,7 @@ export class Entities {
     } else {
       mesh = new THREE.Mesh(
         new THREE.SphereGeometry(kind === 'fire' ? 0.32 : 0.4, 6, 6),
-        new THREE.MeshBasicMaterial({ color: friendly ? 0xff7a20 : 0xff4a10 })
+        new THREE.MeshBasicMaterial({ color: kind === 'ice' ? 0x66d8ff : (friendly ? 0xff7a20 : 0xff4a10) })
       );
     }
     mesh.position.copy(pos);
@@ -751,8 +788,8 @@ export class Entities {
       if (!hit && pr.friendly) {
         for (const e of this.enemies) {
           if (e.dead) continue;
-          const r = (e.type === 'dragonboss' || e.type === 'gate') ? 3.0 : (e.type === 'mountain' ? 2.0 : 1.3);
-          const cy = e.type === 'dragonboss' ? 1.5 : 0.9;
+          const r = (e.type === 'dragonboss' || e.type === 'undeaddragon' || e.type === 'gate' || e.type === 'iceheart') ? 3.0 : (e.type === 'mountain' ? 2.0 : 1.3);
+          const cy = (e.type === 'dragonboss' || e.type === 'undeaddragon') ? 1.5 : 0.9;
           const dx = e.pos.x - pr.pos.x, dy = (e.pos.y + cy) - pr.pos.y, dz = e.pos.z - pr.pos.z;
           if (dx * dx + dy * dy + dz * dz < r * r) {
             this.hitEnemy(e, pr.dmg, pr.kind === 'fire' ? 'fire' : 'arrow');
@@ -825,8 +862,9 @@ export class Entities {
         this.game.ui.toast('Tip: place torches (T, costs 1 wood) — the dead will not rise near their light.');
       }
     }
-    const wantWights = stage >= 19 ? 9 : (stage >= 9 ? 7 : 4);
-    const wantWalkers = (stage === 15 || stage >= 19) ? 3 : (stage >= 9 ? 2 : 1);
+    // after the dawn, the nights are gentle; during the Long Night, they are not
+    const wantWights = stage >= 33 ? 2 : (stage >= 27 ? 12 : (stage >= 19 ? 9 : (stage >= 9 ? 7 : 4)));
+    const wantWalkers = stage >= 33 ? 0 : (stage >= 27 ? 4 : ((stage === 15 || stage >= 19) ? 3 : (stage >= 9 ? 2 : 1)));
     const wights = this.enemies.filter(e => e.type === 'wight' && !e.dead).length;
     const walkers = this.enemies.filter(e => e.type === 'walker' && !e.dead).length;
     const p = this.game.player.pos;
@@ -901,14 +939,35 @@ export class Entities {
         e.group.traverse(o => { if (o.isMesh) o.material.emissive?.setHex(e.hitFlash > 0 ? 0x881111 : 0x000000); });
       }
 
-      if (e.type === 'dragonboss') {
+      if (e.type === 'dragonboss' || e.type === 'undeaddragon') {
         this.updateDragonBoss(e, dt, p);
-        if (e.pos.distanceTo(p.pos) < 55) { bossFrac = e.hp / e.maxHp; bossName = 'THE WILD DRAGON'; }
+        if (e.pos.distanceTo(p.pos) < 55) {
+          bossFrac = e.hp / e.maxHp;
+          bossName = e.type === 'dragonboss' ? 'THE WILD DRAGON' : 'THE UNDEAD DRAGON';
+        }
         continue;
       }
-      if (e.type === 'gate') {
-        if (e.aggroed && e.pos.distanceTo(p.pos) < 45) { bossFrac = e.hp / e.maxHp; bossName = 'THE GATES OF KINGSPORT'; }
+      if (e.type === 'gate' || e.type === 'iceheart') {
+        if (e.aggroed && e.pos.distanceTo(p.pos) < 45) {
+          bossFrac = e.hp / e.maxHp;
+          bossName = e.type === 'gate' ? 'THE GATES OF KINGSPORT' : 'ICE HEART';
+        }
         continue;
+      }
+      // the Night King raises the dead as he fights
+      if (e.type === 'nightking' && e.aggroed) {
+        e.summonCd -= dt;
+        if (e.summonCd <= 0) {
+          e.summonCd = 8;
+          const wightsUp = this.enemies.filter(x => x.type === 'wight' && !x.dead).length;
+          if (wightsUp < 8) {
+            const a = Math.random() * Math.PI * 2;
+            const w = this.addEnemy('wight', e.pos.x + Math.cos(a) * 3, e.pos.z + Math.sin(a) * 3);
+            w.aggroed = true;
+            w.assault = true;
+            this.game.audio?.play('walker', 1500);
+          }
+        }
       }
 
       // pick nearest target
@@ -920,8 +979,8 @@ export class Entities {
       const chasing = !p.dead && tgt && (e.aggroed || td < e.aggro);
       if (chasing && td > e.leash) e.aggroed = false;
 
-      // undead don't press into the keep's walls
-      const nearKeep = e.undead && Math.hypot(e.pos.x - KEEP.x, e.pos.z - KEEP.z) < 20;
+      // undead don't press into the keep's walls — unless they march with the Long Night
+      const nearKeep = e.undead && !e.assault && Math.hypot(e.pos.x - KEEP.x, e.pos.z - KEEP.z) < 20;
 
       let moving = false;
       if (chasing && td <= e.leash && !nearKeep) {
@@ -948,7 +1007,7 @@ export class Entities {
             const from = e.pos.clone(); from.y += 1.4;
             const to = p.pos.clone(); to.y += 1.2;
             const vel = to.sub(from).normalize().multiplyScalar(14);
-            this.shoot('efire', from, vel, 16, false);
+            this.shoot(e.boltKind, from, vel, e.boltDmg, false);
             this.game.audio?.play('fire');
           }
         }
@@ -981,11 +1040,11 @@ export class Entities {
   }
 
   updateDragonBoss(e, dt, p) {
-    const LAIR = { x: 34, z: 150 };
+    const lair = e.lair || { x: 34, z: 150 };
     e.circleT += dt * 0.35;
-    const gy = this.groundY(LAIR.x, LAIR.z);
-    const tx = LAIR.x + Math.cos(e.circleT) * 20;
-    const tz = LAIR.z + Math.sin(e.circleT) * 20;
+    const gy = this.groundY(lair.x, lair.z);
+    const tx = lair.x + Math.cos(e.circleT) * 20;
+    const tz = lair.z + Math.sin(e.circleT) * 20;
     const ty = gy + 13 + Math.sin(this.time * 0.7) * 2.5;
     e.pos.x += (tx - e.pos.x) * Math.min(1, dt * 2);
     e.pos.y += (ty - e.pos.y) * Math.min(1, dt * 2);
@@ -994,16 +1053,16 @@ export class Entities {
     this.flapWings(e.group, 7);
     e.jawT = Math.max(0, (e.jawT || 0) - dt * 2);
     this.dragonIdle(e.group, e.jawT);
-    // breathe fire at the player
+    // breathe fire (or ice) at the player
     e.fireCd -= dt;
     const d = e.pos.distanceTo(p.pos);
     if (!p.dead && d < 48 && e.fireCd <= 0) {
-      e.fireCd = 2.5;
+      e.fireCd = e.type === 'undeaddragon' ? 2.2 : 2.5;
       e.jawT = 1;
       const from = e.pos.clone(); from.y += 1.5;
       const to = p.pos.clone(); to.y += 1.2;
       const vel = to.sub(from).normalize().multiplyScalar(15);
-      this.shoot('efire', from, vel, 20, false);
+      this.shoot(e.type === 'undeaddragon' ? 'ice' : 'efire', from, vel, e.type === 'undeaddragon' ? e.boltDmg : 20, false);
     }
   }
 

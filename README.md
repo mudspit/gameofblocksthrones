@@ -10,7 +10,10 @@ You are a hedge knight who just inherited Mudford Keep — walls, debts, and all
 
 - **Act I — The Hedge Knight**: thin the wolf packs, forge castle steel, and slay Bandit King Rorge to earn your lordship
 - **Act II — Fire and Blood**: hatch a dragon from Rorge's plunder, recruit allies, survive the Vale's raiders, arm yourself with dragonglass, hunt White Walkers in the dark, and slay the Wild Dragon from dragonback
-- **Act III** — coming soon: the march on the capital
+- **Act III — The March on the Capital**: call the banners, burn the gates of Kingsport with dragonfire, duel Ser Gregor the Block, and take the Iron Throne
+- **Act IV — The Long Night**: the Wall falls. Fortify your keep with your own hands, survive the dead's assault, melt the Ice Hearts, slay the Undead Dragon, and end the Night King at your own gates
+
+Along the way, wandering legends — Jon of the Snows, Daeneris Stormborn, the Hound, the Kingslayer, and Tyrion — seek you out with choices that make them allies, enemies, or bargains. Enemies scale up as your campaign advances.
 
 ## Features
 

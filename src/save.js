@@ -55,6 +55,8 @@ export class SaveSystem {
       stage: q.stage,
       wolfKills: q.wolfKills, raiderKills: q.raiderKills, walkerKills: q.walkerKills,
       royalKills: q.royalKills,
+      fortBlocks: q.fortBlocks, fortTorches: q.fortTorches,
+      assaultKills: q.assaultKills, heartKills: q.heartKills,
       player: {
         pos: [p.pos.x, p.pos.y, p.pos.z],
         hp: p.hp, maxHp: p.maxHp, dmg: p.dmg, gold: p.gold, wood: p.wood, meat: p.meat,
@@ -103,6 +105,10 @@ export class SaveSystem {
     q.raiderKills = s.raiderKills || 0;
     q.walkerKills = s.walkerKills || 0;
     q.royalKills = s.royalKills || 0;
+    q.fortBlocks = s.fortBlocks || 0;
+    q.fortTorches = s.fortTorches || 0;
+    q.assaultKills = s.assaultKills || 0;
+    q.heartKills = s.heartKills || 0;
 
     // player
     Object.assign(p, {

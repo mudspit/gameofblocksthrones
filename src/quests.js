@@ -11,8 +11,12 @@
 //           gate with dragonfire → 22 storm the city → 23 duel Ser Gregor the Block
 //           → 24 confront King Joffron → 25 sit the Iron Throne → 26 Sovereign of the Blocks
 
+// ACT IV — 27 fortify the keep (build!) → 28 survive the assault → 29 melt 3 Ice Hearts
+//          → 30 slay the Undead Dragon → 31 END the Night King → 32 the Dawn → 33 peace
+
 const WOLVES_NEEDED = 4, LOGS_NEEDED = 6, RAIDERS_NEEDED = 6, MEAT_NEEDED = 3, WALKERS_NEEDED = 3,
-      CHECKPOINT_NEEDED = 4, GARRISON_NEEDED = 8;
+      CHECKPOINT_NEEDED = 4, GARRISON_NEEDED = 8,
+      FORT_BLOCKS = 15, FORT_TORCHES = 5, ASSAULT_NEEDED = 14, HEARTS_NEEDED = 3;
 
 const FLAVOR = [
   'Winter is coming, m\'lord. It always is.',
@@ -31,9 +35,14 @@ export class Quests {
     this.raiderKills = 0;
     this.walkerKills = 0;
     this.royalKills = 0;
+    this.fortBlocks = 0;
+    this.fortTorches = 0;
+    this.assaultKills = 0;
+    this.heartKills = 0;
   }
 
   playerTitle() {
+    if (this.stage >= 33) return 'Sovereign of the Dawn';
     if (this.stage >= 26) return 'Sovereign of the Blocks';
     if (this.stage >= 17) return 'Dragonlord of Mudford';
     if (this.stage >= 8) return 'Lord of Mudford Keep';
@@ -72,7 +81,14 @@ export class Quests {
       case 23: return 'Duel Ser Gregor the Block in the city plaza.';
       case 24: return 'Enter the throne hall and confront King Joffron.';
       case 25: return 'The hall is yours. Sit the Iron Throne.';
-      default: return 'You rule the Seven Block-Kingdoms. (Act IV: The Long Night — coming soon)';
+      case 26: return 'Speak with Steward Rodrik — dark word rides from the far north.';
+      case 27: return `Fortify Mudford Keep — build and light its grounds! (${this.fortBlocks}/${FORT_BLOCKS} blocks · ${this.fortTorches}/${FORT_TORCHES} torches placed near the keep)`;
+      case 28: return `SURVIVE — the dead assault Mudford Keep! (${this.assaultKills}/${ASSAULT_NEEDED} destroyed)`;
+      case 29: return `Melt the Ice Hearts anchoring the storm — dragonfire only! (${this.heartKills}/${HEARTS_NEEDED})`;
+      case 30: return 'Slay the Undead Dragon circling the frozen hills.';
+      case 31: return 'THE NIGHT KING marches on Mudford Keep. End him — only dragonglass, Valyrian steel, or fire can bite him.';
+      case 32: return 'The dead lie still. Return to Steward Rodrik — dawn is coming.';
+      default: return 'The Long Night is broken. You are the Dawn, and the realm is yours forever.';
     }
   }
 
@@ -144,10 +160,52 @@ export class Quests {
       this.game.ui.toast('The boy king is dead. The throne stands empty...', 'gold');
       this.setStage(25);
     }
+    // --- Act IV ---
+    if ((type === 'wight' || type === 'walker') && this.stage === 28) {
+      this.assaultKills++;
+      if (this.assaultKills >= ASSAULT_NEEDED) {
+        this.game.ui.toast('The assault breaks! But the storm still gathers in the north...', 'gold');
+        this.setStage(29);
+      } else this.game.ui.updateTracker();
+    }
+    if (type === 'iceheart' && this.stage === 29) {
+      this.heartKills++;
+      if (this.heartKills >= HEARTS_NEEDED) {
+        this.game.ui.toast('The storm falters — and something dead takes wing over the frozen hills.', 'gold');
+        this.setStage(30);
+      } else this.game.ui.updateTracker();
+    }
+    if (type === 'undeaddragon' && this.stage === 30) {
+      this.game.ui.toast('The undead dragon shatters like ice! Now HE comes himself...', 'gold');
+      this.setStage(31);
+    }
+    if (type === 'nightking' && this.stage === 31) {
+      // the army dies with its king
+      for (const e of this.game.entities.enemies) {
+        if (e.undead && !e.dead) this.game.entities.removeEnemy(e);
+      }
+      this.game.ui.toast('THE NIGHT KING SHATTERS — and his whole army with him!', 'gold');
+      this.game.audio?.play('fanfare');
+      this.setStage(32);
+    }
   }
 
   onWoodCollected() {
     if (this.stage === 4) this.game.ui.updateTracker();
+  }
+
+  // building near the keep counts toward the fortification quest
+  onBuild(x, z, isTorch) {
+    if (this.stage !== 27) return;
+    if (Math.hypot(x - 52, z - 100) > 28) return;
+    if (isTorch) this.fortTorches++;
+    else this.fortBlocks++;
+    if (this.fortBlocks >= FORT_BLOCKS && this.fortTorches >= FORT_TORCHES) {
+      this.game.ui.toast('Mudford stands ready... and the dead do not wait for dark. THEY COME!', 'gold');
+      this.setStage(28);
+    } else {
+      this.game.ui.updateTracker();
+    }
   }
 
   flavorLine(seed) { return FLAVOR[seed % FLAVOR.length]; }
@@ -195,6 +253,15 @@ export class Quests {
       case 23: return nearestEnemy('mountain', { x: 170, z: 33 });
       case 24: return npcAt('joffron') || nearestEnemy('king', { x: 172, z: 19 });
       case 25: return npcAt('ironthrone') || { x: 172, z: 18 };
+      case 26: case 32: return npcAt('rodrik');
+      case 27: return { x: 52, z: 100 };
+      case 28: {
+        const w = nearestEnemy('wight', null);
+        return w || nearestEnemy('walker', { x: 52, z: 100 });
+      }
+      case 29: return nearestEnemy('iceheart', { x: 96, z: 14 });
+      case 30: return nearestEnemy('undeaddragon', { x: 30, z: 24 });
+      case 31: return nearestEnemy('nightking', { x: 52, z: 125 });
       default: return null;
     }
   }
@@ -254,8 +321,22 @@ export class Quests {
         'Joffron waits in his open-roofed hall, all crown and no courage. Walk in and take what the realm already whispers is yours.');
       case 25: return M('The Iron Throne',
         'A thousand blocky swords, hammered flat by dragonfire three hundred years ago. Every ruler who mattered sat here. Your turn.');
-      default: return M('Sovereign of the Blocks',
-        'The Seven Block-Kingdoms are yours — keep, village, and capital. But the nights grow longer, and the dead grow bolder. Act IV: The Long Night is coming.');
+      case 26: return M('Dark Wings, Dark Words',
+        'A crown does not warm the nights, and the nights keep growing. Rodrik holds a raven scroll sealed in black wax — from the Wall. What is left of it.');
+      case 27: return M('Fortify the Keep',
+        'The Wall has fallen. The dead march south, and Mudford Keep will be the realm\'s shield. Build walls, barricades, and torchlight within its grounds (B cycles blocks, RMB places, T for torches).');
+      case 28: return M('The First Assault',
+        'They do not wait for dark. Wights claw at your fresh walls and White Walkers stride behind them. Your allies fight beside you — hold Mudford Keep or watch it die.');
+      case 29: return M('The Frozen Hearts',
+        'The maesters say the storm is anchored by three Ice Hearts — pillars of living winter planted in the north. Steel shatters on them; only dragonfire melts them. Ride Vhagrik north.');
+      case 30: return M('Dead Wings',
+        'Something answered the Hearts\' breaking: a dragon dead a hundred years, raised on black wings with eyes like frozen stars. It circles the frozen hills. The sky is only big enough for one of you.');
+      case 31: return M('The Long Night',
+        'He walks at the head of what remains — the Night King, crowned in ice, raising your fallen enemies as he comes. He is immune to common steel. Dragonglass, Winterbite, or dragonfire. End the Long Night at your own gates.');
+      case 32: return M('The Dawn',
+        'The dead lie still from Mudford to the Wall\'s ruin. The east is turning gold. Rodrik waits in the courtyard where this all began.');
+      default: return M('Sovereign of the Dawn',
+        'From hedge knight to the ruler who broke the Long Night. The realm is yours — its keeps, its skies, its mornings. Every game needs an ending; yours is legend.');
     }
   }
 
@@ -294,7 +375,21 @@ export class Quests {
         case 18: return d(
           'A raven from Kingsport, my lord — gold wax, the king\'s own seal. The boy king Joffron demands Vhagrik as "tribute owed to the crown." He names you rebel and dragon-thief. My lord... the realm groans under that child. Perhaps it is time someone took the capital from him.',
           { label: 'Then we march on Kingsport.', fn: () => this.setStage(19) });
-        case 26: return d('Long may you reign, Your Grace. Mudford Keep to Kingsport — who\'d have believed it? Rest now... though the maesters write that the nights grow longer.');
+        case 26: return d(
+          'Your Grace... a raven from the Night\'s Watch. Black wax, a shaking hand. The Wall — the Wall has FALLEN. The dead march south, tens of thousands, and something crowned in ice walks at their head. Mudford Keep must become a fortress, tonight.',
+          { label: 'Then we build. Sound the horns.', fn: () => this.setStage(27) });
+        case 27: return d('Every hand in the village is hauling timber, Your Grace. Build walls and light torches within the keep\'s grounds — the dead fear the light.');
+        case 32: return d(
+          'You did it. By every god old and new — the dead are DUST and the east is gold. Three hundred years from now they\'ll sing of the Sovereign who stood at their own gate and broke the Long Night. Kneel one last time... and rise, the Dawn itself.',
+          { label: 'For the living. Always.', fn: () => {
+            p.maxHp += 30;
+            p.hp = p.maxHp;
+            p.dmg += 8;
+            this.game.ui.toast('Blessing of the Dawn — +30 max health, +8 damage!', 'gold');
+            this.setStage(33);
+            this.game.onActFourComplete();
+          } });
+        case 33: return d('The realm sleeps soundly, Your Grace. First lord I ever served who ran out of wars to win.');
         default:
           if (this.stage >= 19) return d('The realm watches, Your Grace-to-be. The beacon marks the way to Kingsport.');
           if (this.stage >= 9) return d('The realm holds its breath, my lord. See to your quest — the beacon marks the way.');
