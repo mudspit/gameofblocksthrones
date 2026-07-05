@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { World, LOG, AIR, PLANK, TORCH, W, D } from './world.js';
+import { World, LOG, AIR, PLANK, TORCH, COBBLE, THATCH, W, D } from './world.js';
 import { GameAudio } from './audio.js';
+import { Legends } from './legends.js';
 import { Player } from './player.js';
 import { Entities } from './entities.js';
 import { Quests } from './quests.js';
@@ -311,6 +312,8 @@ game.onActTwoComplete = () => {
 };
 
 ui.buildMap();
+const legends = new Legends(game);
+game.legends = legends;
 
 // ---------- game flow ----------
 let started = false;
@@ -606,6 +609,7 @@ document.addEventListener('keydown', (e) => {
     if (e.code === 'KeyF') useKit();
     if (e.code === 'KeyH') whistleHorse();
     if (e.code === 'KeyT' && !player.dead) placeTorch();
+    if (e.code === 'KeyB') cycleBuild();
   }
   if (e.code === 'KeyM' && started && !ui.dialogueOpen) {
     if (ui.missionOpen) closeMission();
@@ -684,6 +688,7 @@ function attack() {
     if (hit.block === TORCH) {
       world.torches = world.torches.filter(t => !(t.x === hit.x && t.y === hit.y && t.z === hit.z));
     }
+    world.placed = world.placed.filter(b => !(b.x === hit.x && b.y === hit.y && b.z === hit.z));
     if (hit.block === LOG) {
       player.wood++;
       ui.toast('+1 log');
@@ -693,8 +698,24 @@ function attack() {
   }
 }
 
-function placeAt(blockId) {
-  if (player.wood <= 0) { ui.toast('No wood — chop trees for logs.'); return; }
+// ---------- building ----------
+const BUILD_BLOCKS = [
+  { id: PLANK, label: 'Plank', cost: 1 },
+  { id: COBBLE, label: 'Cobblestone', cost: 2 },
+  { id: THATCH, label: 'Thatch', cost: 1 },
+];
+let buildIdx = 0;
+game.getBuildLabel = () => BUILD_BLOCKS[buildIdx].label + ' · ' + BUILD_BLOCKS[buildIdx].cost + ' wood';
+function cycleBuild() {
+  buildIdx = (buildIdx + 1) % BUILD_BLOCKS.length;
+  game.audio.play('ui');
+  ui.toast('Building with: ' + game.getBuildLabel());
+  ui.updateHud();
+}
+game.cycleBuild = cycleBuild;
+
+function placeAt(blockId, cost) {
+  if (player.wood < cost) { ui.toast(`Needs ${cost} wood — chop trees for logs.`); return; }
   const hit = world.raycast(player.eyePos(), camDir(), 5);
   if (!hit) return;
   const x = hit.x + hit.nx, y = hit.y + hit.ny, z = hit.z + hit.nz;
@@ -703,11 +724,13 @@ function placeAt(blockId) {
   if (Math.floor(p.x) === x && (Math.floor(p.y) === y || Math.floor(p.y + 1) === y) && Math.floor(p.z) === z) return;
   world.set(x, y, z, blockId);
   world.updateBlock(x, y, z);
-  player.wood--;
+  player.wood -= cost;
   game.audio.play('place');
   if (blockId === TORCH) {
     world.torches.push({ x, y, z });
     ui.toast('Torch placed — the dead will not rise near its light.');
+  } else {
+    world.placed.push({ x, y, z, id: blockId });
   }
   ui.updateHud();
 }
@@ -794,8 +817,8 @@ function dismount() {
 }
 game.dismount = dismount;
 
-function placeBlock() { placeAt(PLANK); }
-function placeTorch() { placeAt(TORCH); }
+function placeBlock() { placeAt(BUILD_BLOCKS[buildIdx].id, BUILD_BLOCKS[buildIdx].cost); }
+function placeTorch() { placeAt(TORCH, 1); }
 
 function tryInteract() {
   // mounted: E dismounts
@@ -874,6 +897,7 @@ initTouch(game, {
   useKit: () => { if (started) useKit(); },
   whistle: () => { if (started) whistleHorse(); },
   placeTorch: () => { if (started && !ui.anyPanelOpen() && !player.dead) placeTorch(); },
+  cycleBuild: () => { if (started) cycleBuild(); },
 });
 
 window.game = game; // debug/testing handle
@@ -889,6 +913,7 @@ function loop() {
     if (game.touch && game.touch.attackHeld && !player.dead) attack(); // hold-to-swing on touch
     player.update(dt);
     entities.update(dt);
+    legends.update(dt);
     saveSys.update(dt);
     ui.updateHud();
     ui.updateCompass(player.yaw);

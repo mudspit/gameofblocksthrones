@@ -261,6 +261,7 @@ export class Quests {
 
   // Returns { name, text, options: [{label, fn}] } for the given npc id.
   dialogueFor(npc) {
+    if (npc.legendId) return this.game.legends.dialogueFor(npc);
     const p = this.game.player;
     const close = { label: 'Farewell.', fn: null };
     const d = (text, ...options) => ({ name: npc.name, text, options: [...options, close] });

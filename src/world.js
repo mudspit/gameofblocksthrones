@@ -5,7 +5,7 @@ export const AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, LOG = 4, LEAVES = 5,
              PLANK = 6, WATER = 7, SNOW = 8, THATCH = 9, COBBLE = 10,
              EMBER = 11, BANNER = 12, TORCH = 13;
 
-const BREAKABLE = new Set([GRASS, DIRT, LOG, LEAVES, PLANK, THATCH, TORCH]);
+const BREAKABLE = new Set([GRASS, DIRT, LOG, LEAVES, PLANK, THATCH, TORCH, COBBLE]);
 
 const COLORS = {
   [GRASS]:  { top: [0.40, 0.62, 0.24], side: [0.44, 0.35, 0.22], bottom: [0.40, 0.31, 0.20] },
@@ -65,6 +65,7 @@ export class World {
     this.waterMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.75, depthWrite: false });
     this.torchMat = new THREE.MeshBasicMaterial({ vertexColors: true }); // unlit → glows at night
     this.torches = []; // player-placed torch positions (undead won't spawn near them)
+    this.placed = [];  // player-built blocks, persisted in saves
     // structure footprints (with margin) that trees must avoid
     this.sites = [
       { x0: 39, z0: 87, x1: 65, z1: 113 },   // holdfast

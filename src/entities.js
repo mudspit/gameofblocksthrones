@@ -311,6 +311,23 @@ function makeProp(color) {
   return g;
 }
 
+import { LEGEND_NAMES } from './legends.js';
+
+function makeLegend(id) {
+  switch (id) {
+    case 'jon': return makeHumanoid({ shirt: 0x1a1a1e, pants: 0x141416, skin: 0xd8c8b8,
+      face: { hair: '#141414', beard: '#141414', brows: true }, gear: { weapon: 'sword' } });
+    case 'daeneris': return makeHumanoid({ shirt: 0x9ac8e8, pants: 0x9ac8e8, skin: 0xe8d8c8,
+      face: { female: true, hair: '#e8e8f0' } });
+    case 'hound': return makeHumanoid({ shirt: 0x3a3a3e, pants: 0x2a2a2c, skin: 0xc8a888, scale: 1.45,
+      face: { beard: '#5a3a20', brows: true }, gear: { weapon: 'greatsword', helmet: true, pauldrons: 0x3a3a3e } });
+    case 'jaime': return makeHumanoid({ shirt: 0xd4af37, pants: 0x8a6a20, skin: 0xe0c0a0,
+      face: { hair: '#e8d070', beard: '#e8d070' }, gear: { weapon: 'sword', pauldrons: 0xd4af37 } });
+    case 'tyrion': return makeHumanoid({ shirt: 0x7a2a2a, pants: 0x3a3a3a, skin: 0xe0c0a0, scale: 0.62,
+      face: { hair: '#c8a860', beard: '#c8a860', brows: true } });
+  }
+}
+
 const ENEMY_DEFS = {
   wolf:   { hp: 30,  dmg: 6,  speed: 4.2, aggro: 10, leash: 30, gold: 4,   xp: 25,  label: 'Wolf', labelColor: '#cfcfcf' },
   bandit: { hp: 55,  dmg: 9,  speed: 3.4, aggro: 12, leash: 30, gold: 10,  xp: 40,  label: 'Bandit', labelColor: '#e0a050' },
@@ -324,18 +341,31 @@ const ENEMY_DEFS = {
   gate:   { hp: 350, dmg: 0,  speed: 0,   aggro: 0,  leash: 1,  gold: 0,   xp: 150, label: 'Kingsport Gate', labelColor: '#ffb060' },
   mountain: { hp: 420, dmg: 24, speed: 3.1, aggro: 18, leash: 60, gold: 250, xp: 450, label: 'Ser Gregor the Block', labelColor: '#ff8080' },
   king:   { hp: 160, dmg: 12, speed: 3.4, aggro: 20, leash: 60, gold: 600, xp: 600, label: 'King Joffron', labelColor: '#ffd54a' },
+  // wandering legends turned hostile — mini-bosses
+  jon:      { hp: 320, dmg: 26, speed: 3.9, aggro: 30, leash: 999, gold: 250, xp: 400, label: 'Jon of the Snows', labelColor: '#d8e8f0' },
+  daeneris: { hp: 260, dmg: 18, speed: 3.4, aggro: 30, leash: 999, gold: 320, xp: 400, label: 'Daeneris Stormborn', labelColor: '#c8e0ff', fireRange: 25 },
+  hound:    { hp: 420, dmg: 28, speed: 3.1, aggro: 30, leash: 999, gold: 280, xp: 420, label: 'Sandor the Burned', labelColor: '#d0b090' },
+  jaime:    { hp: 280, dmg: 30, speed: 4.3, aggro: 30, leash: 999, gold: 350, xp: 400, label: 'Ser Jaime the Golden', labelColor: '#ffe090' },
 };
 
 const BOSS_BARS = {
   boss: 'BANDIT KING RORGE',
   mountain: 'SER GREGOR THE BLOCK',
   king: 'KING JOFFRON',
+  jon: 'JON OF THE SNOWS',
+  daeneris: 'DAENERIS STORMBORN',
+  hound: 'SANDOR THE BURNED',
+  jaime: 'THE KINGSLAYER',
 };
 
 const ALLY_DEFS = {
   snow: { hp: 70,  dmg: 9,  speed: 5.0, label: 'Snow', labelColor: '#eef4ff' },
   bryn: { hp: 140, dmg: 15, speed: 4.2, label: 'Ser Bryn', labelColor: '#ffd0a0' },
   orso: { hp: 130, dmg: 13, speed: 4.3, label: 'Captain Orso', labelColor: '#c0e0a0' },
+  jon:      { hp: 240, dmg: 22, speed: 4.5, label: 'Jon of the Snows', labelColor: '#d8e8f0' },
+  daeneris: { hp: 180, dmg: 20, speed: 4.2, label: 'Daeneris Stormborn', labelColor: '#c8e0ff', source: 'fire' },
+  hound:    { hp: 300, dmg: 24, speed: 3.6, label: 'Sandor the Burned', labelColor: '#d0b090' },
+  jaime:    { hp: 220, dmg: 26, speed: 4.4, label: 'Ser Jaime the Golden', labelColor: '#ffe090' },
 };
 
 const KEEP = { x: 52, z: 100 };
@@ -366,6 +396,17 @@ export class Entities {
     group.add(label);
     this.game.scene.add(group);
     this.npcs.push({ id, name, group, pos: group.position });
+  }
+
+  addLegendNpc(legendId, x, z) {
+    const y = this.groundY(x, z);
+    const group = makeLegend(legendId);
+    group.position.set(x, y, z);
+    const label = makeLabel(LEGEND_NAMES[legendId], '#ffd54a');
+    label.position.y = legendId === 'hound' ? 3.2 : (legendId === 'tyrion' ? 1.6 : 2.3);
+    group.add(label);
+    this.game.scene.add(group);
+    this.npcs.push({ id: 'legend_' + legendId, legendId, name: LEGEND_NAMES[legendId], group, pos: group.position });
   }
 
   addProp(id, name, x, z, color) {
@@ -414,6 +455,7 @@ export class Entities {
       brace.position.y = 1.6;
       group.add(brace);
     }
+    else if (LEGEND_NAMES[type]) group = makeLegend(type);
     else group = makeHumanoid({ shirt: 0x704214, pants: 0x3d3d3d, skin: 0xc99b71,
       face: { beard: '#3a2a1a', brows: true }, gear: { weapon: 'sword' } });
     group.position.set(x, type === 'dragonboss' ? y + 13 : y, z);
@@ -430,7 +472,7 @@ export class Entities {
       leash: def.leash, gold: def.gold, xp: def.xp, undead: !!def.undead,
       spawnPos: new THREE.Vector3(x, y, z),
       attackCd: 0, hitFlash: 0, dead: false, deathT: 0, aggroed: false,
-      isNight, circleT: Math.random() * 6.28, fireCd: 0,
+      isNight, circleT: Math.random() * 6.28, fireCd: 0, fireRange: def.fireRange || 0,
     };
     this.enemies.push(e);
     return e;
@@ -648,7 +690,7 @@ export class Entities {
     if (reward) {
       this.game.audio?.play('coin');
       const p = this.game.player;
-      p.gold += e.gold;
+      p.gold += Math.round(e.gold * (1 + (p.goldBonus || 0)));
       p.addXp(e.xp);
       if (e.type === 'boar') {
         p.meat++;
@@ -656,11 +698,12 @@ export class Entities {
       }
       this.game.ui.toast(`${ENEMY_DEFS[e.type].label} slain  ·  +${e.gold} gold  ·  +${e.xp} xp`, 'gold');
       this.game.quests.onKill(e.type);
+      this.game.legends?.onKill(e.type);
       // loot drops
       if ((e.type === 'bandit' || e.type === 'raider') && Math.random() < 0.4) {
         this.addItem('bandage', e.pos.x, e.pos.z);
       }
-      if (['boss', 'dragonboss', 'mountain', 'king'].includes(e.type)) {
+      if (['boss', 'dragonboss', 'mountain', 'king', 'jon', 'daeneris', 'hound', 'jaime'].includes(e.type)) {
         this.addItem('kit', e.pos.x + 1, e.pos.z);
         this.addItem('bandage', e.pos.x - 1, e.pos.z);
       }
@@ -897,6 +940,18 @@ export class Entities {
           e.attackAnim = 1;
           tgt.hit(e.dmg);
         }
+        // some legends hurl fire from range
+        if (e.fireRange) {
+          e.fireCd -= dt;
+          if (td > 3 && td < e.fireRange && e.fireCd <= 0) {
+            e.fireCd = 3;
+            const from = e.pos.clone(); from.y += 1.4;
+            const to = p.pos.clone(); to.y += 1.2;
+            const vel = to.sub(from).normalize().multiplyScalar(14);
+            this.shoot('efire', from, vel, 16, false);
+            this.game.audio?.play('fire');
+          }
+        }
         if (BOSS_BARS[e.type]) { bossFrac = e.hp / e.maxHp; bossName = BOSS_BARS[e.type]; }
       } else {
         const hx = e.spawnPos.x - e.pos.x, hz = e.spawnPos.z - e.pos.z;
@@ -965,10 +1020,13 @@ export class Entities {
         }
         continue;
       }
-      // choose a foe: nearest living, non-walker enemy near the party
+      // choose a foe: nearest living enemy near the party
+      // (only fire-wielding allies can fight White Walkers)
+      const aDef = ALLY_DEFS[a.id] || {};
       let foe = null, fd = 14;
       for (const e of this.enemies) {
-        if (e.dead || e.type === 'walker' || e.type === 'dragonboss' || e.type === 'gate') continue;
+        if (e.dead || e.type === 'dragonboss' || e.type === 'gate') continue;
+        if (e.type === 'walker' && aDef.source !== 'fire') continue;
         if (!e.aggroed && e.pos.distanceTo(p.pos) > 12) continue;
         const d = e.pos.distanceTo(a.pos);
         if (d < fd) { fd = d; foe = e; }
@@ -987,7 +1045,7 @@ export class Entities {
         if (d < 1.9 && a.attackCd <= 0) {
           a.attackCd = 1.1;
           a.attackAnim = 1;
-          this.hitEnemy(foe, a.dmg, 'ally');
+          this.hitEnemy(foe, a.dmg, aDef.source || 'ally');
         }
       } else {
         // out of combat: slow recovery

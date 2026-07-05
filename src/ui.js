@@ -144,6 +144,8 @@ export class UI {
     if (bn) bn.textContent = p.bandages;
     const kn = document.getElementById('kitNum');
     if (kn) kn.textContent = p.kits;
+    const bd = document.getElementById('buildName');
+    if (bd && this.game.getBuildLabel) bd.textContent = this.game.getBuildLabel();
   }
 
   updateCompass(yaw) {

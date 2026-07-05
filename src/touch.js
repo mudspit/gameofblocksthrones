@@ -109,4 +109,5 @@ export function initTouch(game, actions) {
   bind('btnF', () => actions.useKit());
   bind('btnWhistle', () => actions.whistle());
   bind('btnTorch', () => actions.placeTorch());
+  bind('btnBuild', () => actions.cycleBuild());
 }

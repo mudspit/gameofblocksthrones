@@ -65,6 +65,9 @@ export class SaveSystem {
       dragon: e.dragon ? e.dragon.state : null,
       itemsTaken: this.itemsTakenList || [],
       torches: g.world.torches.map(t => [t.x, t.y, t.z]),
+      placed: g.world.placed.map(b => [b.x, b.y, b.z, b.id]),
+      legends: g.legends ? g.legends.status : {},
+      goldBonus: g.player.goldBonus || 0,
     };
   }
 
@@ -135,12 +138,21 @@ export class SaveSystem {
       }
     }
 
-    // player-placed torches
+    // player-placed torches and buildings
     for (const [tx, ty, tz] of s.torches || []) {
       g.world.set(tx, ty, tz, TORCH);
       g.world.updateBlock(tx, ty, tz);
       g.world.torches.push({ x: tx, y: ty, z: tz });
     }
+    for (const [bx, by, bz, bid] of s.placed || []) {
+      g.world.set(bx, by, bz, bid);
+      g.world.updateBlock(bx, by, bz);
+      g.world.placed.push({ x: bx, y: by, z: bz, id: bid });
+    }
+
+    // legend encounters already resolved + Tyrion's perk
+    if (g.legends) g.legends.status = s.legends || {};
+    p.goldBonus = s.goldBonus || 0;
 
     // upgrades that affect visuals / world state
     if (s.stage >= 5) g.upgradeSword(s.player.hasValyrian);
