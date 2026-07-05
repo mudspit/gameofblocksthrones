@@ -84,48 +84,134 @@ function makeHead(size, skin, face) {
   );
 }
 
-function makeHumanoid({ shirt, pants, skin, scale = 1, face = {} }) {
+// A limb that swings from a real joint: the pivot sits at the hip/shoulder
+// and the mesh hangs below it.
+function limbPivot(w, h, d, color, x, y, z) {
+  const pivot = new THREE.Group();
+  pivot.position.set(x, y, z);
+  const m = box(w, h, d, color);
+  m.position.y = -h / 2;
+  pivot.add(m);
+  return pivot;
+}
+
+// Hand-held gear attaches to the arm pivots so it swings with attacks.
+function addGear(g, gear) {
+  if (!gear) return;
+  const { armR, armL } = g.userData.limbs;
+  if (gear.weapon) {
+    const w = new THREE.Group();
+    if (gear.weapon === 'spear' || gear.weapon === 'ice') {
+      const ice = gear.weapon === 'ice';
+      const pole = box(0.05, 1.7, 0.05, ice ? 0x9fd4e8 : 0x5a4028);
+      const tip = box(0.09, 0.24, 0.09, ice ? 0xe8fbff : 0x9aa3ad);
+      tip.position.y = 0.95;
+      w.add(pole, tip);
+      w.position.set(0, -0.5, 0.12);
+    } else if (gear.weapon === 'hammer') {
+      const shaft = box(0.06, 0.8, 0.06, 0x5a4028);
+      const head = box(0.26, 0.17, 0.17, 0x777780);
+      head.position.y = -0.34;
+      w.add(shaft, head);
+      w.position.set(0, -0.6, 0.1);
+    } else { // sword / greatsword
+      const len = gear.weapon === 'greatsword' ? 0.95 : 0.6;
+      const blade = box(0.06, len, 0.06, 0x9aa3ad);
+      blade.position.y = -len / 2 - 0.12;
+      const guard = box(0.18, 0.05, 0.06, 0x6b5a35);
+      guard.position.y = -0.1;
+      w.add(blade, guard);
+      w.position.set(0, -0.55, 0.08);
+    }
+    armR.add(w);
+  }
+  if (gear.shield) {
+    const s = box(0.07, 0.5, 0.4, 0x6a4a28);
+    const bossKnob = box(0.04, 0.16, 0.14, 0x9aa3ad);
+    bossKnob.position.x = -0.06;
+    s.add(bossKnob);
+    s.position.set(-0.13, -0.4, 0);
+    armL.add(s);
+  }
+}
+
+function makeHumanoid({ shirt, pants, skin, scale = 1, face = {}, gear = null }) {
   const g = new THREE.Group();
-  const legL = box(0.22, 0.7, 0.22, pants); legL.position.set(-0.13, 0.35, 0);
-  const legR = box(0.22, 0.7, 0.22, pants); legR.position.set(0.13, 0.35, 0);
+  const legL = limbPivot(0.22, 0.7, 0.22, pants, -0.13, 0.7, 0);
+  const legR = limbPivot(0.22, 0.7, 0.22, pants, 0.13, 0.7, 0);
+  const armL = limbPivot(0.16, 0.6, 0.16, shirt, -0.35, 1.32, 0);
+  const armR = limbPivot(0.16, 0.6, 0.16, shirt, 0.35, 1.32, 0);
   const body = box(0.5, 0.65, 0.28, shirt); body.position.y = 1.02;
-  const armL = box(0.16, 0.6, 0.16, shirt); armL.position.set(-0.35, 1.05, 0);
-  const armR = box(0.16, 0.6, 0.16, shirt); armR.position.set(0.35, 1.05, 0);
+  const belt = box(0.52, 0.08, 0.3, 0x2a2018); belt.position.y = 0.74;
   const head = makeHead(0.42, skin, face); head.position.y = 1.58;
-  g.add(legL, legR, body, armL, armR, head);
+  g.add(legL, legR, body, belt, armL, armR, head);
+  // armor details
+  if (gear && gear.helmet) {
+    const helm = box(0.46, 0.16, 0.46, 0x7a7a84); helm.position.y = 0.2;
+    const nose = box(0.07, 0.2, 0.05, 0x7a7a84); nose.position.set(0, 0, 0.22);
+    head.add(helm, nose);
+  }
+  if (gear && gear.crown) {
+    const band = box(0.46, 0.08, 0.46, 0xe8c020); band.position.y = 0.24;
+    head.add(band);
+    for (const [dx, dz] of [[-0.17, 0.17], [0.17, 0.17], [-0.17, -0.17], [0.17, -0.17]]) {
+      const spike = box(0.07, 0.14, 0.07, 0xe8c020);
+      spike.position.set(dx, 0.34, dz);
+      head.add(spike);
+    }
+  }
+  if (gear && gear.pauldrons) {
+    for (const side of [-1, 1]) {
+      const p = box(0.24, 0.12, 0.28, gear.pauldrons);
+      p.position.set(side * 0.35, 1.38, 0);
+      g.add(p);
+    }
+  }
   g.scale.setScalar(scale);
   g.userData.limbs = { legL, legR, armL, armR };
+  g.userData.breathe = { mesh: body, baseY: 1.02 };
+  addGear(g, gear);
   return g;
 }
 
-function makeQuadruped({ bodyColor, legColor, headColor, bodyW, bodyH, bodyL, legH, headScale = 1, tail = true }) {
+function makeQuadruped({ bodyColor, legColor, headColor, bodyW, bodyH, bodyL, legH, headScale = 1, tail = true, ears = true }) {
   const g = new THREE.Group();
   const body = box(bodyW, bodyH, bodyL, bodyColor);
   body.position.y = legH + bodyH / 2;
   const head = box(0.38 * headScale, 0.35 * headScale, 0.4 * headScale, headColor);
   head.position.set(0, legH + bodyH * 0.9, bodyL / 2 + 0.15);
-  // eyes on the front of the head
   const hw = 0.38 * headScale, hh = 0.35 * headScale, hd = 0.4 * headScale;
+  // eyes + ears on the head
   for (const side of [-1, 1]) {
     const eye = box(0.06, 0.06, 0.02, 0x14141a);
     eye.position.set(side * hw * 0.24, hh * 0.14, hd / 2 + 0.01);
     head.add(eye);
+    if (ears) {
+      const ear = box(0.09, 0.14, 0.05, legColor);
+      ear.position.set(side * hw * 0.32, hh / 2 + 0.06, -hd * 0.15);
+      head.add(ear);
+    }
   }
+  // legs swing from hip joints
   const legs = [];
   const lx = bodyW / 2 - 0.1, lz = bodyL / 2 - 0.15;
   for (const [dx, dz] of [[-lx, lz], [lx, lz], [-lx, -lz], [lx, -lz]]) {
-    const l = box(0.15, legH, 0.15, legColor);
-    l.position.set(dx, legH / 2, dz);
+    const l = limbPivot(0.15, legH, 0.15, legColor, dx, legH, dz);
     legs.push(l); g.add(l);
   }
   g.add(body, head);
   if (tail) {
+    const tailPivot = new THREE.Group();
+    tailPivot.position.set(0, legH + bodyH * 0.8, -bodyL / 2);
     const t = box(0.12, 0.12, 0.4, legColor);
-    t.position.set(0, legH + bodyH * 0.8, -bodyL / 2 - 0.15);
-    g.add(t);
+    t.position.z = -0.22;
+    tailPivot.add(t);
+    g.add(tailPivot);
+    g.userData.tail = tailPivot;
   }
   g.userData.limbs = { legL: legs[0], legR: legs[1], armL: legs[2], armR: legs[3] };
   g.userData.head = head;
+  g.userData.breathe = { mesh: body, baseY: legH + bodyH / 2 };
   return g;
 }
 
@@ -133,14 +219,25 @@ function makeWolf(color = 0x6e6e6e) {
   return makeQuadruped({ bodyColor: color, legColor: 0x5a5a5a, headColor: color, bodyW: 0.5, bodyH: 0.45, bodyL: 1.0, legH: 0.4 });
 }
 function makeBoar() {
-  return makeQuadruped({ bodyColor: 0x5e4630, legColor: 0x4a3826, headColor: 0x4e3a28, bodyW: 0.6, bodyH: 0.55, bodyL: 1.0, legH: 0.32, tail: false });
+  const g = makeQuadruped({ bodyColor: 0x5e4630, legColor: 0x4a3826, headColor: 0x4e3a28, bodyW: 0.6, bodyH: 0.55, bodyL: 1.0, legH: 0.32, tail: false });
+  // tusks
+  for (const side of [-1, 1]) {
+    const tusk = box(0.05, 0.14, 0.05, 0xe8e0d0);
+    tusk.position.set(side * 0.12, -0.1, 0.22);
+    g.userData.head.add(tusk);
+  }
+  return g;
 }
 function makeHorse() {
   const g = makeQuadruped({ bodyColor: 0x6a4a2a, legColor: 0x54381e, headColor: 0x6a4a2a, bodyW: 0.8, bodyH: 0.9, bodyL: 1.8, legH: 1.0, headScale: 1.1 });
   const neck = box(0.35, 0.8, 0.35, 0x6a4a2a); neck.position.set(0, 1.95, 0.85);
   const head = g.userData.head; head.position.set(0, 2.45, 1.15); head.scale.set(0.9, 1.1, 1.6);
   const mane = box(0.14, 0.7, 0.3, 0x3a2814); mane.position.set(0, 2.1, 0.62);
-  g.add(neck, mane);
+  // saddle + blanket
+  const blanket = box(0.86, 0.06, 0.7, 0x7a2a2a); blanket.position.set(0, 1.93, -0.1);
+  const saddle = box(0.5, 0.14, 0.55, 0x3a2814); saddle.position.set(0, 2.02, -0.1);
+  const pommel = box(0.12, 0.14, 0.1, 0x3a2814); pommel.position.set(0, 2.12, 0.16);
+  g.add(neck, mane, blanket, saddle, pommel);
   return g;
 }
 
@@ -149,12 +246,31 @@ export function makeDragon(scale, bodyColor, wingColor) {
   const body = box(1.5, 1.0, 2.6, bodyColor); body.position.y = 1.3;
   const neck = box(0.55, 0.55, 1.0, bodyColor); neck.position.set(0, 1.8, 1.6);
   const head = box(0.7, 0.55, 1.0, bodyColor); head.position.set(0, 2.1, 2.4);
-  const jaw = box(0.4, 0.18, 0.6, wingColor); jaw.position.set(0, 1.85, 2.6);
-  const tail1 = box(0.6, 0.5, 1.4, bodyColor); tail1.position.set(0, 1.15, -1.9);
-  const tail2 = box(0.35, 0.3, 1.4, bodyColor); tail2.position.set(0, 1.05, -3.1);
+  // jaw on a hinge — opens when breathing fire
+  const jawPivot = new THREE.Group();
+  jawPivot.position.set(0, 1.9, 2.0);
+  const jaw = box(0.4, 0.16, 0.7, wingColor);
+  jaw.position.set(0, -0.05, 0.45);
+  jawPivot.add(jaw);
+  // tail in two jointed segments that sway
+  const tailPivot1 = new THREE.Group();
+  tailPivot1.position.set(0, 1.15, -1.2);
+  const tail1 = box(0.6, 0.5, 1.4, bodyColor); tail1.position.z = -0.7;
+  tailPivot1.add(tail1);
+  const tailPivot2 = new THREE.Group();
+  tailPivot2.position.set(0, -0.08, -1.4);
+  const tail2 = box(0.35, 0.3, 1.4, bodyColor); tail2.position.z = -0.7;
+  tailPivot2.add(tail2);
+  tailPivot1.add(tailPivot2);
+  // spikes along the spine
+  for (const [sy, sz, ss] of [[1.95, 0.7, 0.22], [1.95, 0.1, 0.26], [1.95, -0.5, 0.22], [1.55, -1.1, 0.18]]) {
+    const spike = box(0.12, ss, 0.12, wingColor);
+    spike.position.set(0, sy, sz);
+    g.add(spike);
+  }
   const legs = [];
   for (const [dx, dz] of [[-0.6, 0.8], [0.6, 0.8], [-0.6, -0.8], [0.6, -0.8]]) {
-    const l = box(0.28, 0.9, 0.28, bodyColor); l.position.set(dx, 0.45, dz);
+    const l = limbPivot(0.28, 0.9, 0.28, bodyColor, dx, 0.9, dz);
     legs.push(l); g.add(l);
   }
   const wings = [];
@@ -178,10 +294,13 @@ export function makeDragon(scale, bodyColor, wingColor) {
     eye.position.set(side * 0.2, 2.22, 2.91);
     g.add(eye);
   }
-  g.add(body, neck, head, jaw, tail1, tail2, hornL, hornR);
+  g.add(body, neck, head, jawPivot, tailPivot1, hornL, hornR);
   g.scale.setScalar(scale);
   g.userData.wings = wings;
   g.userData.limbs = { legL: legs[0], legR: legs[1], armL: legs[2], armR: legs[3] };
+  g.userData.tailSegs = [tailPivot1, tailPivot2];
+  g.userData.jaw = jawPivot;
+  g.userData.breathe = { mesh: body, baseY: 1.3 };
   return g;
 }
 
@@ -275,20 +394,20 @@ export class Entities {
     if (type === 'wolf') group = makeWolf();
     else if (type === 'boar') group = makeBoar();
     else if (type === 'boss') group = makeHumanoid({ shirt: 0x4d1259, pants: 0x2a2a2a, skin: 0xb08968, scale: 1.35,
-      face: { beard: '#161616', hair: '#161616', brows: true } });
+      face: { beard: '#161616', hair: '#161616', brows: true }, gear: { weapon: 'hammer', pauldrons: 0x2a2a30 } });
     else if (type === 'wight') group = makeHumanoid({ shirt: 0x4a5248, pants: 0x3a423a, skin: 0x8fa08f,
       face: { undead: '#9fe8c8', old: true } });
     else if (type === 'walker') group = makeHumanoid({ shirt: 0x2e3d44, pants: 0x23303a, skin: 0xbfe0e8, scale: 1.25,
-      face: { undead: '#66e0ff', brows: true } });
+      face: { undead: '#66e0ff', brows: true }, gear: { weapon: 'ice' } });
     else if (type === 'raider') group = makeHumanoid({ shirt: 0x3a4a6e, pants: 0x2a2a2a, skin: 0xc9a07a,
-      face: { hair: '#3a2a1a', brows: true } });
+      face: { hair: '#3a2a1a', brows: true }, gear: { weapon: 'sword', helmet: true } });
     else if (type === 'dragonboss') group = makeDragon(1.4, 0x3a5a2a, 0x7a9a3a);
     else if (type === 'royal') group = makeHumanoid({ shirt: 0xc9a227, pants: 0x3a3a3a, skin: 0xd8b090,
-      face: { hair: '#4a3a20', brows: true } });
+      face: { hair: '#4a3a20', brows: true }, gear: { weapon: 'spear', helmet: true, pauldrons: 0xc9a227 } });
     else if (type === 'mountain') group = makeHumanoid({ shirt: 0x8a8a92, pants: 0x4a4a52, skin: 0xd8c0a0, scale: 1.6,
-      face: { beard: '#2a2018', brows: true } });
+      face: { beard: '#2a2018', brows: true }, gear: { weapon: 'greatsword', helmet: true, pauldrons: 0x6a6a72 } });
     else if (type === 'king') group = makeHumanoid({ shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0,
-      face: { hair: '#e8d070' } });
+      face: { hair: '#e8d070' }, gear: { crown: true, weapon: 'sword' } });
     else if (type === 'gate') {
       group = new THREE.Group();
       const brace = box(2.4, 2.4, 0.4, 0x8a6a3a);
@@ -296,7 +415,7 @@ export class Entities {
       group.add(brace);
     }
     else group = makeHumanoid({ shirt: 0x704214, pants: 0x3d3d3d, skin: 0xc99b71,
-      face: { beard: '#3a2a1a', brows: true } });
+      face: { beard: '#3a2a1a', brows: true }, gear: { weapon: 'sword' } });
     group.position.set(x, type === 'dragonboss' ? y + 13 : y, z);
     const label = makeLabel(type === 'gate' ? 'Kingsport Gate — dragonfire!' : def.label, def.labelColor);
     label.position.y = type === 'wolf' || type === 'boar' ? 1.3 :
@@ -324,9 +443,9 @@ export class Entities {
     let group;
     if (id === 'snow') group = makeWolf(0xdde4ec);
     else if (id === 'orso') group = makeHumanoid({ shirt: 0x4a5a3a, pants: 0x5a4a30, skin: 0xc99b71,
-      face: { beard: '#4a4a42', hair: '#4a4a42' } });
+      face: { beard: '#4a4a42', hair: '#4a4a42' }, gear: { weapon: 'sword', shield: true } });
     else group = makeHumanoid({ shirt: 0x7a2a2a, pants: 0x3a3a3a, skin: 0xd8b090,
-      face: { beard: '#6a4028', hair: '#6a4028' } });
+      face: { beard: '#6a4028', hair: '#6a4028' }, gear: { weapon: 'sword', shield: true, pauldrons: 0x7a2a2a } });
     group.position.set(p.x + 1.5, p.y, p.z + 1.5);
     const label = makeLabel(def.label + ' (ally)', def.labelColor);
     label.position.y = id === 'snow' ? 1.3 : 2.2;
@@ -679,12 +798,14 @@ export class Entities {
     this.updateProjectiles(dt);
     this.updateItems(dt);
 
-    // NPCs face the player when near
+    // NPCs face the player when near, and breathe
+    let nphase = 0;
     for (const n of this.npcs) {
       if (n.prop) continue;
       if (n.pos.distanceTo(p.pos) < 6) {
         n.group.rotation.y = Math.atan2(p.pos.x - n.pos.x, p.pos.z - n.pos.z);
       }
+      this.idleAnim(n.group, nphase++);
     }
 
     // targets an enemy may choose from: player + standing allies
@@ -748,6 +869,7 @@ export class Entities {
         e.attackCd -= dt;
         if (td < 2.0 && e.attackCd <= 0) {
           e.attackCd = 1.2;
+          e.attackAnim = 1;
           tgt.hit(e.dmg);
         }
         if (BOSS_BARS[e.type]) { bossFrac = e.hp / e.maxHp; bossName = BOSS_BARS[e.type]; }
@@ -765,7 +887,9 @@ export class Entities {
 
       const gy = this.groundY(e.pos.x, e.pos.z);
       e.pos.y += (gy - e.pos.y) * Math.min(1, dt * 12);
-      this.walkAnim(e.group, moving);
+      e.attackAnim = Math.max(0, (e.attackAnim || 0) - dt * 3);
+      this.walkAnim(e.group, moving, e.attackAnim);
+      this.idleAnim(e.group, e.spawnPos.x);
     }
 
     if (bossFrac !== null) this.game.ui.showBossBar(bossFrac, bossName);
@@ -788,11 +912,14 @@ export class Entities {
     e.pos.z += (tz - e.pos.z) * Math.min(1, dt * 2);
     e.group.rotation.y = Math.atan2(tx - e.pos.x, tz - e.pos.z) || e.group.rotation.y;
     this.flapWings(e.group, 7);
+    e.jawT = Math.max(0, (e.jawT || 0) - dt * 2);
+    this.dragonIdle(e.group, e.jawT);
     // breathe fire at the player
     e.fireCd -= dt;
     const d = e.pos.distanceTo(p.pos);
     if (!p.dead && d < 48 && e.fireCd <= 0) {
       e.fireCd = 2.5;
+      e.jawT = 1;
       const from = e.pos.clone(); from.y += 1.5;
       const to = p.pos.clone(); to.y += 1.2;
       const vel = to.sub(from).normalize().multiplyScalar(15);
@@ -833,6 +960,7 @@ export class Entities {
         a.attackCd -= dt;
         if (d < 1.9 && a.attackCd <= 0) {
           a.attackCd = 1.1;
+          a.attackAnim = 1;
           this.hitEnemy(foe, a.dmg, 'ally');
         }
       } else {
@@ -848,7 +976,9 @@ export class Entities {
       }
       const gy = this.groundY(a.pos.x, a.pos.z);
       a.pos.y += (gy - a.pos.y) * Math.min(1, dt * 12);
-      this.walkAnim(a.group, moving);
+      a.attackAnim = Math.max(0, (a.attackAnim || 0) - dt * 3);
+      this.walkAnim(a.group, moving, a.attackAnim);
+      this.idleAnim(a.group, a.id.length);
     }
   }
 
@@ -872,6 +1002,8 @@ export class Entities {
     d.pos.y += (targetY - d.pos.y) * Math.min(1, dt * 4);
     if (grown) this.flapWings(d.group, 5);
     else this.walkAnim(d.group, moving);
+    d.jawT = Math.max(0, (d.jawT || 0) - dt * 2);
+    this.dragonIdle(d.group, d.jawT);
     // a grown dragon defends you
     if (grown) {
       d.fireCd -= dt;
@@ -881,6 +1013,7 @@ export class Entities {
           if (!e.aggroed) continue;
           if (e.pos.distanceTo(p.pos) > 22) continue;
           d.fireCd = 2.2;
+          d.jawT = 1;
           const from = d.pos.clone(); from.y += 2;
           const to = e.pos.clone(); to.y += 1;
           const vel = to.sub(from).normalize().multiplyScalar(16);
@@ -896,16 +1029,35 @@ export class Entities {
     if (!h || h.mounted) return;
     const gy = this.groundY(h.pos.x, h.pos.z);
     h.pos.y += (gy - h.pos.y) * Math.min(1, dt * 12);
+    this.idleAnim(h.group, 2.5);
   }
 
-  walkAnim(group, moving) {
+  walkAnim(group, moving, attackT = 0) {
     const limbs = group.userData.limbs;
     if (!limbs) return;
-    const s = moving ? Math.sin(this.time * 9) * 0.5 : 0;
+    const s = moving ? Math.sin(this.time * 9) * 0.55 : 0;
     limbs.legL.rotation.x = s;
     limbs.legR.rotation.x = -s;
-    limbs.armL.rotation.x = -s;
-    limbs.armR.rotation.x = s;
+    limbs.armL.rotation.x = -s * 0.8;
+    // the weapon arm raises and chops when attacking
+    limbs.armR.rotation.x = attackT > 0 ? -2.2 * attackT : s * 0.8;
+  }
+
+  // subtle life: breathing bodies, wagging tails
+  idleAnim(group, phase = 0) {
+    const u = group.userData;
+    if (u.breathe) u.breathe.mesh.position.y = u.breathe.baseY + Math.sin(this.time * 2.2 + phase) * 0.02;
+    if (u.tail) u.tail.rotation.y = Math.sin(this.time * 5 + phase) * 0.35;
+  }
+
+  dragonIdle(group, jawT = 0) {
+    const u = group.userData;
+    if (u.tailSegs) {
+      u.tailSegs[0].rotation.y = Math.sin(this.time * 1.6) * 0.18;
+      u.tailSegs[1].rotation.y = Math.sin(this.time * 1.6 + 0.9) * 0.3;
+    }
+    if (u.jaw) u.jaw.rotation.x = 0.7 * Math.max(0, jawT);
+    if (u.breathe) u.breathe.mesh.position.y = u.breathe.baseY + Math.sin(this.time * 1.8) * 0.03;
   }
 
   flapWings(group, speed) {

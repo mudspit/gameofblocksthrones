@@ -159,8 +159,10 @@ export class World {
         if ((x + z) % 2 === 0) this.set(x, g + 5, z, STONE);
       }
     }
-    // south gate (3 wide)
+    // south gate (3 wide), flanked by house banners
     this.fill(51, g + 1, z1, 53, g + 3, z1, AIR);
+    this.set(49, g + 4, z1, BANNER);
+    this.set(55, g + 4, z1, BANNER);
     // NW tower
     for (let y = g + 1; y <= g + 8; y++) {
       for (let x = x0; x <= x0 + 4; x++)
@@ -240,6 +242,8 @@ export class World {
     this.fill(168, g + 1, z1, 172, g + 5, z1, AIR);
     this.fill(168, g + 1, z1, 172, g + 4, z1, PLANK);
     this.cityGate = { x0: 168, x1: 172, z: z1, y0: g + 1, y1: g + 4 };
+    this.set(166, g + 4, z1, BANNER);
+    this.set(174, g + 4, z1, BANNER);
     // main street + plaza
     this.fill(168, g, 29, 172, g, z1 - 1, COBBLE);
     this.fill(160, g, 28, 180, g, 38, COBBLE);

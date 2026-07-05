@@ -220,13 +220,13 @@ game.entities = entities;
 entities.addNpc('rodrik', 'Steward Rodrik', 52.5, 101.5, { shirt: 0x2c4a6e, pants: 0x3a3a3a, skin: 0xd8b090,
   face: { beard: '#b8b8b0', old: true } });
 entities.addNpc('tobbo', 'Smith Tobbo', 58.5, 104.5, { shirt: 0x5a3a24, pants: 0x2a2a2a, skin: 0xc99b71,
-  face: { beard: '#4a2a10', hair: '#4a2a10', brows: true } });
+  face: { beard: '#4a2a10', hair: '#4a2a10', brows: true }, gear: { weapon: 'hammer' } });
 entities.addNpc('marta', 'Elder Marta', 140.5, 99.5, { shirt: 0x5e5040, pants: 0x4a4038, skin: 0xd8b090,
   face: { female: true, hair: '#c8c8c4', old: true } });
 entities.addNpc('guard1', 'Keep Guard', 49.5, 110.5, { shirt: 0x555c66, pants: 0x2f2f2f, skin: 0xc9a07a,
-  face: { hair: '#2a2a2a', brows: true } });
+  face: { hair: '#2a2a2a', brows: true }, gear: { weapon: 'spear', helmet: true } });
 entities.addNpc('guard2', 'Keep Guard', 55.5, 110.5, { shirt: 0x555c66, pants: 0x2f2f2f, skin: 0xb58a63,
-  face: { hair: '#1a1a1a', beard: '#1a1a1a' } });
+  face: { hair: '#1a1a1a', beard: '#1a1a1a' }, gear: { weapon: 'spear', helmet: true } });
 entities.addNpc('vill1', 'Villager Wyl', 137.5, 93.5, { shirt: 0x6e5a3a, pants: 0x4a4038, skin: 0xd8b090,
   face: { hair: '#5a3a1a' } });
 entities.addNpc('vill2', 'Villager Senna', 143.5, 96.5, { shirt: 0x4a5a3a, pants: 0x4a4038, skin: 0xc99b71,
@@ -260,7 +260,7 @@ game.onStageChanged = (s) => {
   if (s === 9) entities.addProp('chest', 'Strange Chest', 150.5, 153.5, 0x7a5a2a);
   if (s === 10) entities.addProp('forgefire', 'Forge Fire', 59.5, 104.5, 0xd86a2a);
   if (s === 11) entities.addNpc('bryn', 'Ser Bryn', 137.5, 97.5, { shirt: 0x7a2a2a, pants: 0x3a3a3a, skin: 0xd8b090,
-    face: { beard: '#6a4028', hair: '#6a4028' } });
+    face: { beard: '#6a4028', hair: '#6a4028' }, gear: { weapon: 'sword', shield: true } });
   if (s === 12) {
     const spots = [[48, 116], [52, 118], [56, 116], [50, 121], [54, 121], [52, 124]];
     for (const [x, z] of spots) entities.addEnemy('raider', x + 0.5, z + 0.5);
@@ -285,7 +285,7 @@ game.onStageChanged = (s) => {
   }
   if (s === 23) entities.addEnemy('mountain', 170.5, 33.5);
   if (s === 24) entities.addNpc('joffron', 'King Joffron', 172.5, 19.5, { shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0,
-    face: { hair: '#e8d070' } });
+    face: { hair: '#e8d070' }, gear: { crown: true } });
   if (s === 25) entities.addProp('ironthrone', 'The Iron Throne', 172.5, 18.5, 0x8a8a92);
 };
 
@@ -624,6 +624,7 @@ function attack() {
   if (player.mount === 'dragon') {
     player.attackCd = 0.8;
     game.audio.play('fire');
+    if (entities.dragon) entities.dragon.jawT = 1;
     const from = origin.clone().add(dir.clone().multiplyScalar(2.5));
     from.y -= 0.6;
     entities.shoot('fire', from, dir.clone().multiplyScalar(24), 35, true);
@@ -880,21 +881,26 @@ function loop() {
   // camera follows player
   camera.position.set(player.pos.x, player.pos.y + player.eyeH(), player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, 0);
-  // weapon swing animation
+  // weapon swing + walking bob
+  const stride = Math.hypot(player.vel.x, player.vel.z);
   holder.rotation.x = 0.35 - player.swingT * 1.3;
   holder.rotation.z = player.swingT * 0.4;
+  holder.position.y = -0.28 + (stride > 0.5 && player.onGround ? Math.sin(elapsed * 11) * 0.014 : 0);
 
   // mounted animals track the rider
   if (player.mount === 'horse' && entities.horse) {
     const h = entities.horse;
     h.pos.set(player.pos.x, player.pos.y, player.pos.z);
     h.group.rotation.y = player.yaw + Math.PI;
-    entities.walkAnim(h.group, Math.abs(player.vel.x) + Math.abs(player.vel.z) > 0.5);
+    entities.walkAnim(h.group, stride > 0.5);
+    entities.idleAnim(h.group, 2.5);
   } else if (player.mount === 'dragon' && entities.dragon) {
     const dgn = entities.dragon;
     dgn.pos.set(player.pos.x, player.pos.y - 1.2, player.pos.z);
     dgn.group.rotation.y = player.yaw + Math.PI;
     entities.flapWings(dgn.group, 6);
+    dgn.jawT = Math.max(0, (dgn.jawT || 0) - dt * 2);
+    entities.dragonIdle(dgn.group, dgn.jawT);
   }
 
   renderer.render(scene, camera);
