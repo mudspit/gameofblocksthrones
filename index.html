@@ -156,7 +156,7 @@
   }
   #pauseMenu button:hover { border-color: #d4af37; background: #57431f; }
   #menuBtn {
-    position: fixed; right: 190px; bottom: 16px; z-index: 10; padding: 10px 14px;
+    position: fixed; right: 236px; bottom: 16px; z-index: 10; padding: 10px 14px;
     font-size: 15px; cursor: pointer; display: none; color: #e8dcc0;
   }
   #menuBtn:hover { border-color: #d4af37; }
@@ -182,6 +182,16 @@
   }
   #muteBtn:hover { border-color: #d4af37; }
   .touch #muteBtn { bottom: unset; top: 64px; right: 106px; padding: 8px 12px; }
+  #musicBtn {
+    position: fixed; right: 172px; bottom: 16px; z-index: 10; padding: 10px 14px;
+    font-size: 15px; cursor: pointer; display: none; color: #e8dcc0;
+  }
+  #musicBtn:hover { border-color: #d4af37; }
+  #musicBtn.off { opacity: 0.4; }
+  .touch #musicBtn { bottom: unset; top: 64px; right: 160px; padding: 8px 12px; }
+  .touch #menuBtn { right: 214px; }
+  #musicVolRow { margin-top: 16px; font-size: 12px; letter-spacing: 2px; color: #a89468; }
+  #musicVol { width: 100%; margin-top: 8px; accent-color: #d4af37; cursor: pointer; }
   #mapOverlay {
     position: fixed; inset: 0; z-index: 35; display: none;
     align-items: center; justify-content: center; background: rgba(5, 3, 2, 0.7);
@@ -342,7 +352,8 @@
     <div id="btnWhistle" class="tbtn">🐎</div>
     <div id="btnTorch" class="tbtn">🔥</div>
   </div>
-  <div id="muteBtn" class="panel" title="Sound on/off">🔊</div>
+  <div id="muteBtn" class="panel" title="Sound effects on/off">🔊</div>
+  <div id="musicBtn" class="panel" title="Music on/off">🎵</div>
   <div id="menuBtn" class="panel" title="Pause menu — save &amp; exit">⏸ Menu</div>
 
   <div id="toasts"></div>
@@ -367,6 +378,9 @@
       <div id="pauseMsg">— PAUSED —</div>
       <button id="resumeBtn">RESUME</button>
       <button id="saveExitBtn">SAVE &amp; EXIT TO TITLE</button>
+      <div id="musicVolRow">MUSIC VOLUME
+        <input id="musicVol" type="range" min="0" max="100" value="22">
+      </div>
     </div>
   </div>
 

@@ -25,6 +25,7 @@ export class UI {
       this.el[id].style.display = 'block';
     }
     document.getElementById('muteBtn').style.display = 'block';
+    document.getElementById('musicBtn').style.display = 'block';
     document.getElementById('menuBtn').style.display = 'block';
     this.updateHud();
     this.updateTracker();

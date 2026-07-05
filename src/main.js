@@ -405,6 +405,26 @@ document.getElementById('muteBtn').addEventListener('click', () => {
   if (on) game.audio.play('ui');
 });
 document.getElementById('muteBtn').textContent = game.audio.enabled ? '🔊' : '🔇';
+
+// background music: quiet loop, own mute + volume
+const musicBtn = document.getElementById('musicBtn');
+const musicVol = document.getElementById('musicVol');
+function refreshMusicUI() {
+  game.audio.initMusic();
+  musicBtn.classList.toggle('off', !game.audio.musicOn);
+  musicBtn.textContent = game.audio.musicOn ? '🎵' : '🎵✕';
+  musicVol.value = Math.round(game.audio.musicVol * 100);
+}
+musicBtn.addEventListener('click', () => {
+  game.audio.toggleMusic();
+  refreshMusicUI();
+});
+musicVol.addEventListener('input', () => {
+  game.audio.setMusicVolume(musicVol.value / 100);
+  if (!game.audio.musicOn && musicVol.value > 0) { game.audio.toggleMusic(); }
+  refreshMusicUI();
+});
+refreshMusicUI();
 ui.el.mapClose.addEventListener('click', closeMap);
 ui.el.mapObjective.addEventListener('click', openMission);
 ui.el.tracker.addEventListener('click', openMission);
@@ -484,6 +504,7 @@ refreshAccountUI();
 
 beginBtn.addEventListener('click', () => {
   game.audio.init();
+  game.audio.startMusic();
   const name = accountName.value.trim() || 'Knight of Mudford';
   saveSys.createOrSelect(name);
   saveSys.setHouse(chosenHouse.id);

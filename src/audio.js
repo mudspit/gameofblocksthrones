@@ -31,6 +31,37 @@ export class GameAudio {
     return this.enabled;
   }
 
+  // ---- background music (quiet, looping, independent of sfx) ----
+  initMusic() {
+    if (this.music) return;
+    this.music = new Audio('assets/music.mp3');
+    this.music.loop = true;
+    this.musicVol = Math.min(1, Math.max(0, parseFloat(localStorage.getItem('gob_music_vol') || '0.22')));
+    this.musicOn = localStorage.getItem('gob_music') !== 'off';
+    this.music.volume = this.musicVol;
+  }
+
+  startMusic() {
+    this.initMusic();
+    if (this.musicOn) this.music.play().catch(() => {});
+  }
+
+  toggleMusic() {
+    this.initMusic();
+    this.musicOn = !this.musicOn;
+    localStorage.setItem('gob_music', this.musicOn ? 'on' : 'off');
+    if (this.musicOn) this.music.play().catch(() => {});
+    else this.music.pause();
+    return this.musicOn;
+  }
+
+  setMusicVolume(v) {
+    this.initMusic();
+    this.musicVol = Math.min(1, Math.max(0, v));
+    localStorage.setItem('gob_music_vol', String(this.musicVol));
+    this.music.volume = this.musicVol;
+  }
+
   play(name, throttleMs = 70) {
     if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
     const now = performance.now();
