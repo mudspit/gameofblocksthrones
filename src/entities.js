@@ -216,7 +216,30 @@ function makeQuadruped({ bodyColor, legColor, headColor, bodyW, bodyH, bodyL, le
 }
 
 function makeWolf(color = 0x6e6e6e) {
-  return makeQuadruped({ bodyColor: color, legColor: 0x5a5a5a, headColor: color, bodyW: 0.5, bodyH: 0.45, bodyL: 1.0, legH: 0.4 });
+  const g = makeQuadruped({ bodyColor: color, legColor: 0x5a5a5a, headColor: color, bodyW: 0.5, bodyH: 0.45, bodyL: 1.0, legH: 0.4 });
+  const head = g.userData.head;
+  // snout and bared fangs
+  const snout = box(0.2, 0.16, 0.26, color);
+  snout.position.set(0, -0.03, 0.32);
+  head.add(snout);
+  for (const side of [-1, 1]) {
+    const fang = box(0.04, 0.1, 0.04, 0xf0ece0);
+    fang.position.set(side * 0.05, -0.13, 0.42);
+    head.add(fang);
+  }
+  // shaggy shoulder ruff
+  const ruff = box(0.62, 0.42, 0.32, 0x4a4a4a);
+  ruff.position.set(0, 0.62, 0.32);
+  g.add(ruff);
+  // paw claws
+  for (const l of Object.values(g.userData.limbs)) {
+    for (const cx of [-0.05, 0.05]) {
+      const claw = box(0.04, 0.09, 0.12, 0xe8e0d0);
+      claw.position.set(cx, -0.4, 0.08);
+      l.add(claw);
+    }
+  }
+  return g;
 }
 function makeBoar() {
   const g = makeQuadruped({ bodyColor: 0x5e4630, legColor: 0x4a3826, headColor: 0x4e3a28, bodyW: 0.6, bodyH: 0.55, bodyL: 1.0, legH: 0.32, tail: false });
@@ -268,9 +291,25 @@ export function makeDragon(scale, bodyColor, wingColor, eyeColor = 0xffb020) {
     spike.position.set(0, sy, sz);
     g.add(spike);
   }
+  // scaled hide plates down both flanks
+  for (let zz = -1.0; zz <= 1.0; zz += 0.5) {
+    for (const side of [-1, 1]) {
+      const plate = box(0.14, 0.16, 0.34, wingColor);
+      plate.position.set(side * 0.73, 1.52, zz);
+      plate.rotation.z = side * 0.5;
+      g.add(plate);
+    }
+  }
   const legs = [];
   for (const [dx, dz] of [[-0.6, 0.8], [0.6, 0.8], [-0.6, -0.8], [0.6, -0.8]]) {
     const l = limbPivot(0.28, 0.9, 0.28, bodyColor, dx, 0.9, dz);
+    // three pale claws at the foot
+    for (const cx of [-0.09, 0, 0.09]) {
+      const claw = box(0.07, 0.13, 0.18, 0xe8e0d0);
+      claw.position.set(cx, -0.92, 0.16);
+      claw.rotation.x = 0.4;
+      l.add(claw);
+    }
     legs.push(l); g.add(l);
   }
   const wings = [];
@@ -280,11 +319,27 @@ export function makeDragon(scale, bodyColor, wingColor, eyeColor = 0xffb020) {
     const wing = box(2.6, 0.08, 1.5, wingColor);
     wing.position.x = side * 1.4;
     pivot.add(wing);
+    // finger-bone horns rising along the wing, and a hooked claw at the tip
+    for (const [wx, wh] of [[0.8, 0.34], [1.6, 0.44], [2.3, 0.52]]) {
+      const spike = box(0.1, wh, 0.1, wingColor);
+      spike.position.set(side * wx, wh / 2, -0.55);
+      pivot.add(spike);
+    }
+    const tipClaw = box(0.12, 0.13, 0.42, 0xe8e0d0);
+    tipClaw.position.set(side * 2.6, 0.03, 0.6);
+    pivot.add(tipClaw);
     wings.push(pivot);
     g.add(pivot);
   }
   const hornL = box(0.12, 0.4, 0.12, wingColor); hornL.position.set(-0.22, 2.5, 2.2);
   const hornR = box(0.12, 0.4, 0.12, wingColor); hornR.position.set(0.22, 2.5, 2.2);
+  // longer back-swept brow horns
+  for (const side of [-1, 1]) {
+    const brow = box(0.1, 0.55, 0.1, wingColor);
+    brow.position.set(side * 0.3, 2.42, 1.98);
+    brow.rotation.x = 0.7;
+    g.add(brow);
+  }
   // glowing amber eyes
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(
@@ -392,6 +447,21 @@ function makeSoldier(type) {
 // enemies too large for footsoldiers to bother fighting
 const BIG_FOES = new Set(['dragonboss', 'undeaddragon', 'gate', 'iceheart', 'nightking']);
 
+// jagged ice growing from a cold one's shoulders and spine
+function addIceShards(group, count, color = 0x9ae8ff) {
+  const spots = [[-0.34, 1.42, -0.12], [0.34, 1.42, -0.12], [-0.22, 1.72, -0.14], [0.22, 1.72, -0.14], [0, 1.98, -0.16]];
+  for (let i = 0; i < count && i < spots.length; i++) {
+    const [x, y, z] = spots[i];
+    const shard = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.32 + (i % 3) * 0.12, 0.08),
+      new THREE.MeshBasicMaterial({ color })
+    );
+    shard.position.set(x, y, z);
+    shard.rotation.x = -0.35;
+    group.add(shard);
+  }
+}
+
 const KEEP = { x: 52, z: 100 };
 
 export class Entities {
@@ -463,10 +533,10 @@ export class Entities {
     else if (type === 'boar') group = makeBoar();
     else if (type === 'boss') group = makeHumanoid({ shirt: 0x4d1259, pants: 0x2a2a2a, skin: 0xb08968, scale: 1.35,
       face: { beard: '#161616', hair: '#161616', brows: true }, gear: { weapon: 'hammer', pauldrons: 0x2a2a30 } });
-    else if (type === 'wight') group = makeHumanoid({ shirt: 0x4a5248, pants: 0x3a423a, skin: 0x8fa08f,
-      face: { undead: '#9fe8c8', old: true } });
-    else if (type === 'walker') group = makeHumanoid({ shirt: 0x2e3d44, pants: 0x23303a, skin: 0xbfe0e8, scale: 1.25,
-      face: { undead: '#66e0ff', brows: true }, gear: { weapon: 'ice' } });
+    else if (type === 'wight') { group = makeHumanoid({ shirt: 0x4a5248, pants: 0x3a423a, skin: 0x8fa08f,
+      face: { undead: '#9fe8c8', old: true } }); addIceShards(group, 2, 0x9fe8c8); }
+    else if (type === 'walker') { group = makeHumanoid({ shirt: 0x2e3d44, pants: 0x23303a, skin: 0xbfe0e8, scale: 1.25,
+      face: { undead: '#66e0ff', brows: true }, gear: { weapon: 'ice' } }); addIceShards(group, 5); }
     else if (type === 'raider') group = makeHumanoid({ shirt: 0x3a4a6e, pants: 0x2a2a2a, skin: 0xc9a07a,
       face: { hair: '#3a2a1a', brows: true }, gear: { weapon: 'sword', helmet: true } });
     else if (type === 'dragonboss') group = makeDragon(1.4, 0x3a5a2a, 0x7a9a3a);
@@ -507,6 +577,7 @@ export class Entities {
         spike.position.set(dx, 1.9, dz);
         group.add(spike);
       }
+      addIceShards(group, 5);
     }
     else if (LEGEND_NAMES[type]) group = makeLegend(type);
     else group = makeHumanoid({ shirt: 0x704214, pants: 0x3d3d3d, skin: 0xc99b71,
