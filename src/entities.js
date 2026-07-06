@@ -350,6 +350,9 @@ const ENEMY_DEFS = {
   iceheart:    { hp: 220, dmg: 0,  speed: 0,   aggro: 0,  leash: 1,   gold: 40,   xp: 150,  label: 'Ice Heart', labelColor: '#9ae8ff' },
   undeaddragon: { hp: 420, dmg: 24, speed: 0,  aggro: 48, leash: 999, gold: 350,  xp: 600,  label: 'The Undead Dragon', labelColor: '#8ad0e8', boltKind: 'ice', boltDmg: 26 },
   nightking:   { hp: 500, dmg: 30, speed: 3.2, aggro: 40, leash: 999, gold: 1000, xp: 1000, label: 'The Night King', labelColor: '#8af0ff', undead: true, fireRange: 20, boltKind: 'ice', boltDmg: 22 },
+  // rebel warbands (army battles)
+  rebel:   { hp: 75,  dmg: 12, speed: 3.7, aggro: 400, leash: 999, gold: 16,  xp: 55,  label: 'Rebel Soldier', labelColor: '#e09090' },
+  warlord: { hp: 300, dmg: 22, speed: 3.4, aggro: 400, leash: 999, gold: 150, xp: 250, label: 'Rebel Warlord', labelColor: '#ff9060' },
 };
 
 const BOSS_BARS = {
@@ -361,6 +364,7 @@ const BOSS_BARS = {
   hound: 'SANDOR THE BURNED',
   jaime: 'THE KINGSLAYER',
   nightking: 'THE NIGHT KING',
+  warlord: 'REBEL WARLORD',
 };
 
 const ALLY_DEFS = {
@@ -373,6 +377,21 @@ const ALLY_DEFS = {
   jaime:    { hp: 220, dmg: 26, speed: 4.4, label: 'Ser Jaime the Golden', labelColor: '#ffe090' },
 };
 
+// Hired soldiers (the player's bought army). Unlike story allies they die for good.
+export const MAX_ARMY = 8;
+const SOLDIER_DEFS = {
+  levy:   { hp: 100, dmg: 12, speed: 4.4, cost: 100, label: 'Levy' },
+  knight: { hp: 190, dmg: 22, speed: 4.2, cost: 250, label: 'Hired Knight' },
+};
+function makeSoldier(type) {
+  if (type === 'knight') return makeHumanoid({ shirt: 0x8a8f96, pants: 0x4a4e54, skin: 0xd8b090,
+    face: { brows: true, hair: '#3a2a1a' }, gear: { weapon: 'sword', shield: true, helmet: true, pauldrons: 0x9aa0a8 } });
+  return makeHumanoid({ shirt: 0x6a5230, pants: 0x4a3a24, skin: 0xc99b71,
+    face: { brows: true, hair: '#4a3418' }, gear: { weapon: 'spear' } });
+}
+// enemies too large for footsoldiers to bother fighting
+const BIG_FOES = new Set(['dragonboss', 'undeaddragon', 'gate', 'iceheart', 'nightking']);
+
 const KEEP = { x: 52, z: 100 };
 
 export class Entities {
@@ -383,6 +402,9 @@ export class Entities {
     this.allies = [];
     this.projectiles = [];
     this.items = [];      // world pickups: bandages, kits, weapons
+    this.soldiers = [];   // player's bought army (permadeath)
+    this.battleActive = false;
+    this.battleWave = 0;
     this.dragon = null;   // player's dragon companion
     this.horse = null;
     this.time = 0;
@@ -454,6 +476,10 @@ export class Entities {
       face: { beard: '#2a2018', brows: true }, gear: { weapon: 'greatsword', helmet: true, pauldrons: 0x6a6a72 } });
     else if (type === 'king') group = makeHumanoid({ shirt: 0x6a2a6a, pants: 0xc9a227, skin: 0xe8c8a0,
       face: { hair: '#e8d070' }, gear: { crown: true, weapon: 'sword' } });
+    else if (type === 'rebel') group = makeHumanoid({ shirt: 0x6a3030, pants: 0x3a2a2a, skin: 0xc9a07a,
+      face: { hair: '#2a1a10', brows: true }, gear: { weapon: 'spear', helmet: true } });
+    else if (type === 'warlord') group = makeHumanoid({ shirt: 0x8a2020, pants: 0x2a2020, skin: 0xd8b090, scale: 1.4,
+      face: { beard: '#3a1a10', hair: '#3a1a10', brows: true }, gear: { weapon: 'greatsword', helmet: true, pauldrons: 0x8a2020 } });
     else if (type === 'gate') {
       group = new THREE.Group();
       const brace = box(2.4, 2.4, 0.4, 0x8a6a3a);
@@ -557,6 +583,140 @@ export class Entities {
     g.fillStyle = a.downed ? '#b8a830' : (frac > 0.5 ? '#4a9a3a' : frac > 0.25 ? '#c9a227' : '#b03030');
     g.fillRect(1, 1, 62 * frac, 8);
     a.bar.tex.needsUpdate = true;
+  }
+
+  // ---------- hired army ----------
+  soldierCount() { return this.soldiers.filter(s => !s.dead).length; }
+
+  addSoldier(type, silent = false) {
+    if (this.soldierCount() >= MAX_ARMY) return false;
+    const def = SOLDIER_DEFS[type];
+    const p = this.game.player.pos;
+    const idx = this.soldiers.length;
+    const group = makeSoldier(type);
+    const ox = ((idx % 4) - 1.5) * 1.6, oz = 2 + Math.floor(idx / 4) * 1.6;
+    group.position.set(p.x + ox, p.y, p.z + oz);
+    const label = makeLabel(def.label, type === 'knight' ? '#d8e0e8' : '#e0d0a0');
+    label.position.y = 2.2;
+    group.add(label);
+    const barCanvas = document.createElement('canvas');
+    barCanvas.width = 64; barCanvas.height = 10;
+    const barTex = new THREE.CanvasTexture(barCanvas);
+    const barSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: barTex, depthTest: false }));
+    barSpr.scale.set(1.5, 0.22, 1);
+    barSpr.position.y = 2.6;
+    barSpr.visible = false;
+    group.add(barSpr);
+    this.game.scene.add(group);
+    this.soldiers.push({
+      type, name: def.label, group, pos: group.position,
+      hp: def.hp, maxHp: def.hp, dmg: def.dmg, speed: def.speed,
+      attackCd: 0, dead: false, deathT: 0, formation: { ox, oz },
+      bar: { canvas: barCanvas, tex: barTex, spr: barSpr },
+    });
+    if (!silent) this.game.ui.toast(`${def.label} joins your host!`, 'gold');
+    return true;
+  }
+
+  drawSoldierBar(s) {
+    const frac = Math.max(0, s.hp / s.maxHp);
+    s.bar.spr.visible = s.hp < s.maxHp - 0.5;
+    if (!s.bar.spr.visible) return;
+    if (s._bf !== undefined && Math.abs(s._bf - frac) < 0.02) return;
+    s._bf = frac;
+    const g = s.bar.canvas.getContext('2d');
+    g.clearRect(0, 0, 64, 10);
+    g.fillStyle = 'rgba(10,8,6,0.85)';
+    g.fillRect(0, 0, 64, 10);
+    g.fillStyle = frac > 0.5 ? '#4a9a3a' : frac > 0.25 ? '#c9a227' : '#b03030';
+    g.fillRect(1, 1, 62 * frac, 8);
+    s.bar.tex.needsUpdate = true;
+  }
+
+  damageSoldier(s, n) {
+    if (s.dead) return;
+    s.hp -= n;
+    if (s.hp <= 0) {
+      s.hp = 0; s.dead = true; s.deathT = 0;
+      this.game.ui.toast(`Your ${s.type === 'knight' ? 'hired knight' : 'levy'} falls in battle.`);
+      this.game.audio?.play('hurt');
+    }
+  }
+
+  // provoke a rebel warband to march on the keep — bigger each wave
+  musterRebelHost() {
+    if (this.battleActive) return;
+    this.battleActive = true;
+    this.battleWave++;
+    const n = 3 + this.battleWave * 2;
+    const originX = 52, originZ = 134;
+    for (let i = 0; i < n; i++) {
+      const ox = originX + (i % 5 - 2) * 2.4;
+      const oz = originZ + Math.floor(i / 5) * 2.4;
+      this.addEnemy('rebel', ox + 0.5, oz + 0.5).aggroed = true;
+    }
+    this.addEnemy('warlord', originX + 0.5, originZ + 4.5).aggroed = true;
+    this.game.ui.toast(`Wave ${this.battleWave}: a rebel host marches on Mudford from the south — rally your army!`, 'gold');
+    this.game.audio?.play('night');
+  }
+
+  updateSoldiers(dt, p) {
+    for (let i = this.soldiers.length - 1; i >= 0; i--) {
+      const s = this.soldiers[i];
+      if (s.dead) {
+        s.deathT += dt;
+        s.group.rotation.z = Math.min(Math.PI / 2, s.deathT * 4);
+        if (s.deathT > 1.5) {
+          if (s.group.parent) this.game.scene.remove(s.group);
+          this.soldiers.splice(i, 1);
+        }
+        continue;
+      }
+      this.drawSoldierBar(s);
+      // find nearest foe worth fighting
+      let foe = null, fd = 18;
+      for (const e of this.enemies) {
+        if (e.dead || BIG_FOES.has(e.type)) continue;
+        if (!e.aggroed && e.pos.distanceTo(p.pos) > 18) continue;
+        const d = e.pos.distanceTo(s.pos);
+        if (d < fd) { fd = d; foe = e; }
+      }
+      let moving = false;
+      if (foe) {
+        const dx = foe.pos.x - s.pos.x, dz = foe.pos.z - s.pos.z;
+        const d = Math.hypot(dx, dz);
+        s.group.rotation.y = Math.atan2(dx, dz);
+        if (d > 1.6) {
+          s.pos.x += (dx / d) * s.speed * dt;
+          s.pos.z += (dz / d) * s.speed * dt;
+          moving = true;
+        }
+        s.attackCd -= dt;
+        if (d < 1.9 && s.attackCd <= 0) {
+          s.attackCd = 1.1;
+          s.attackAnim = 1;
+          this.hitEnemy(foe, s.dmg, 'ally');
+        }
+      } else {
+        // form up around the player
+        const tx = p.pos.x + s.formation.ox, tz = p.pos.z + s.formation.oz;
+        const dx = tx - s.pos.x, dz = tz - s.pos.z;
+        const d = Math.hypot(dx, dz);
+        if (d > 45) { s.pos.set(tx, p.pos.y, tz); }
+        else if (d > 1.2) {
+          s.pos.x += (dx / d) * s.speed * dt;
+          s.pos.z += (dz / d) * s.speed * dt;
+          s.group.rotation.y = Math.atan2(dx, dz);
+          moving = true;
+        }
+        s.hp = Math.min(s.maxHp, s.hp + 1.5 * dt);
+      }
+      const gy = this.groundY(s.pos.x, s.pos.z);
+      s.pos.y += (gy - s.pos.y) * Math.min(1, dt * 12);
+      s.attackAnim = Math.max(0, (s.attackAnim || 0) - dt * 3);
+      this.walkAnim(s.group, moving, s.attackAnim);
+      this.idleAnim(s.group, i);
+    }
   }
 
   // ---------- world pickups ----------
@@ -745,6 +905,18 @@ export class Entities {
         this.addItem('bandage', e.pos.x - 1, e.pos.z);
       }
     }
+    // rebel-host battle: pay out when the last of them falls
+    if ((e.type === 'rebel' || e.type === 'warlord') && this.battleActive) {
+      const anyLeft = this.enemies.some(x => (x.type === 'rebel' || x.type === 'warlord') && !x.dead);
+      if (!anyLeft) {
+        this.battleActive = false;
+        const bounty = 200 + (this.battleWave - 1) * 150;
+        this.game.player.gold += bounty;
+        this.game.ui.toast(`The rebel host is broken! The field is yours — +${bounty} gold bounty.`, 'gold');
+        this.game.audio?.play('fanfare');
+        this.game.ui.updateHud();
+      }
+    }
     if (e.type === 'gate') {
       this.game.world.openCityGate();
       this.game.ui.toast('The gate burns! Kingsport lies open.', 'gold');
@@ -808,6 +980,13 @@ export class Entities {
             if (a.downed) continue;
             const ax = a.pos.x - pr.pos.x, ay = (a.pos.y + 1) - pr.pos.y, az = a.pos.z - pr.pos.z;
             if (ax * ax + ay * ay + az * az < 2.5) { this.damageAlly(a, pr.dmg); hit = true; break; }
+          }
+        }
+        if (!hit) {
+          for (const s of this.soldiers) {
+            if (s.dead) continue;
+            const sx = s.pos.x - pr.pos.x, sy = (s.pos.y + 1) - pr.pos.y, sz = s.pos.z - pr.pos.z;
+            if (sx * sx + sy * sy + sz * sz < 2.5) { this.damageSoldier(s, pr.dmg); hit = true; break; }
           }
         }
       }
@@ -914,10 +1093,13 @@ export class Entities {
       this.idleAnim(n.group, nphase++);
     }
 
-    // targets an enemy may choose from: player + standing allies
+    // targets an enemy may choose from: player + standing allies + hired soldiers
     const targets = [{ pos: p.pos, hit: (n) => p.damage(n), isPlayer: true }];
     for (const a of this.allies) {
       if (!a.downed) targets.push({ pos: a.pos, hit: (n) => this.damageAlly(a, n) });
+    }
+    for (const s of this.soldiers) {
+      if (!s.dead) targets.push({ pos: s.pos, hit: (n) => this.damageSoldier(s, n) });
     }
 
     let bossFrac = null, bossName = '';
@@ -1035,6 +1217,7 @@ export class Entities {
     else this.game.ui.hideBossBar();
 
     this.updateAllies(dt, p);
+    this.updateSoldiers(dt, p);
     this.updateDragonCompanion(dt, p);
     this.updateHorse(dt);
   }

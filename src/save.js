@@ -64,6 +64,8 @@ export class SaveSystem {
         hasValyrian: p.hasValyrian, bandages: p.bandages, kits: p.kits,
       },
       allies: e.allies.map(a => a.id),
+      soldiers: e.soldiers.filter(s => !s.dead).map(s => s.type),
+      battleWave: e.battleWave || 0,
       dragon: e.dragon ? e.dragon.state : null,
       itemsTaken: this.itemsTakenList || [],
       torches: g.world.torches.map(t => [t.x, t.y, t.z]),
@@ -119,8 +121,10 @@ export class SaveSystem {
     });
     p.pos.set(s.player.pos[0], s.player.pos[1] + 0.5, s.player.pos[2]);
 
-    // allies & dragon
+    // allies, hired army & dragon
     for (const id of s.allies || []) e.addAlly(id);
+    e.battleWave = s.battleWave || 0;
+    for (const t of s.soldiers || []) e.addSoldier(t, true);
     if (s.dragon) {
       e.spawnDragonHatchling();
       if (s.dragon === 'grown') e.growDragon();

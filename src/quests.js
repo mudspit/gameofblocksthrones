@@ -341,8 +341,53 @@ export class Quests {
   }
 
   // Returns { name, text, options: [{label, fn}] } for the given npc id.
+  // Sergeant Hobb — recruit an army and provoke rebel-host battles.
+  hobbShop(npc) {
+    const p = this.game.player, e = this.game.entities;
+    const close = { label: 'Farewell.', fn: null };
+    if (this.stage < 8) {
+      return { name: npc.name, text: 'Sellswords follow coin, and coin follows a lord. Earn your lordship first, ser — then we\'ll speak of armies.', options: [close] };
+    }
+    const refresh = () => this.hobbShop(npc);
+    const count = e.soldierCount();
+    const full = count >= 8;
+    const opts = [];
+    opts.push({
+      label: full ? 'Army full (8/8)' : `Recruit a Levy — 100 gold   [host ${count}/8]`,
+      keepOpen: true,
+      fn: () => {
+        if (full) return;
+        if (p.gold < 100) { this.game.ui.toast('Not enough gold — a levy costs 100.'); return; }
+        p.gold -= 100; e.addSoldier('levy'); this.game.audio?.play('coin'); this.game.ui.updateHud(); this.game.saveNow?.();
+      },
+    });
+    opts.push({
+      label: full ? 'Army full (8/8)' : `Hire a Knight — 250 gold   [host ${count}/8]`,
+      keepOpen: true,
+      fn: () => {
+        if (full) return;
+        if (p.gold < 250) { this.game.ui.toast('Not enough gold — a knight costs 250.'); return; }
+        p.gold -= 250; e.addSoldier('knight'); this.game.audio?.play('coin'); this.game.ui.updateHud(); this.game.saveNow?.();
+      },
+    });
+    if (!e.battleActive) {
+      const bounty = 200 + e.battleWave * 150;
+      opts.push({
+        label: `Provoke a rebel host to battle (Wave ${e.battleWave + 1}) — ${bounty} gold if you win`,
+        fn: () => { e.musterRebelHost(); this.game.saveNow?.(); },
+      });
+    } else {
+      opts.push({ label: 'A battle already rages — go and win it!', fn: null });
+    }
+    const text = count > 0
+      ? `Your host stands ${count} strong, my lord. Steel wins fields — shall we grow it, or blood it?`
+      : 'A lord needs more than his own sword. I muster levies and hire knights, for the right coin. And when your blades grow restless, I know rebels who\'d test them.';
+    return { name: npc.name, text, options: [...opts, close], refresh };
+  }
+
   dialogueFor(npc) {
     if (npc.legendId) return this.game.legends.dialogueFor(npc);
+    if (npc.id === 'hobb') return this.hobbShop(npc);
     const p = this.game.player;
     const close = { label: 'Farewell.', fn: null };
     const d = (text, ...options) => ({ name: npc.name, text, options: [...options, close] });

@@ -146,6 +146,12 @@ export class UI {
     if (kn) kn.textContent = p.kits;
     const bd = document.getElementById('buildName');
     if (bd && this.game.getBuildLabel) bd.textContent = this.game.getBuildLabel();
+    const ar = document.getElementById('armyRow');
+    if (ar && this.game.entities) {
+      const n = this.game.entities.soldierCount();
+      ar.style.display = n > 0 ? 'block' : 'none';
+      document.getElementById('armyNum').textContent = n;
+    }
   }
 
   updateCompass(yaw) {
@@ -183,19 +189,23 @@ export class UI {
   showDialogue(d, onClose) {
     this.dialogueOpen = true;
     this.el.dialogue.style.display = 'block';
-    this.el.dlgName.textContent = d.name;
-    this.el.dlgText.textContent = d.text;
-    this.el.dlgOptions.innerHTML = '';
-    for (const opt of d.options) {
-      const b = document.createElement('button');
-      b.textContent = opt.label;
-      b.onclick = () => {
-        if (opt.fn) opt.fn();
-        this.hideDialogue();
-        onClose();
-      };
-      this.el.dlgOptions.appendChild(b);
-    }
+    const render = (data) => {
+      this.el.dlgName.textContent = data.name;
+      this.el.dlgText.textContent = data.text;
+      this.el.dlgOptions.innerHTML = '';
+      for (const opt of data.options) {
+        const b = document.createElement('button');
+        b.textContent = opt.label;
+        b.onclick = () => {
+          if (opt.fn) opt.fn();
+          // shop-style options keep the menu open and re-render with fresh state
+          if (opt.keepOpen && data.refresh) render(data.refresh());
+          else { this.hideDialogue(); onClose(); }
+        };
+        this.el.dlgOptions.appendChild(b);
+      }
+    };
+    render(d);
   }
 
   hideDialogue() {

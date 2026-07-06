@@ -232,6 +232,8 @@ entities.addNpc('vill1', 'Villager Wyl', 137.5, 93.5, { shirt: 0x6e5a3a, pants: 
   face: { hair: '#5a3a1a' } });
 entities.addNpc('vill2', 'Villager Senna', 143.5, 96.5, { shirt: 0x4a5a3a, pants: 0x4a4038, skin: 0xc99b71,
   face: { female: true, hair: '#8a5a20' } });
+entities.addNpc('hobb', 'Sergeant Hobb', 50.5, 106.5, { shirt: 0x4a4030, pants: 0x3a3020, skin: 0xc99b71,
+  face: { beard: '#5a4a30', hair: '#5a4a30', brows: true }, gear: { weapon: 'sword', pauldrons: 0x6a5a3a } });
 
 // Enemies: wolves in the northern woods
 const wolfSpots = [[62, 38], [78, 30], [95, 44], [110, 34], [70, 52], [124, 46], [88, 24], [104, 55]];
