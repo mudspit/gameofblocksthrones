@@ -72,6 +72,9 @@ export class SaveSystem {
       placed: g.world.placed.map(b => [b.x, b.y, b.z, b.id]),
       legends: g.legends ? g.legends.status : {},
       goldBonus: g.player.goldBonus || 0,
+      rogues: e.rogues || {},
+      kingdoms: g.kingdoms || {},
+      relicsFound: p.relicsFound || 0,
     };
   }
 
@@ -134,7 +137,7 @@ export class SaveSystem {
     this.itemsTakenList = s.itemsTaken || [];
     for (let i = e.items.length - 1; i >= 0; i--) {
       const it = e.items[i];
-      const key = (it.weaponId || it.kind) + '@' + Math.round(it.pos.x) + ',' + Math.round(it.pos.z);
+      const key = (it.weaponId || it.relicId || it.kind) + '@' + Math.round(it.pos.x) + ',' + Math.round(it.pos.z);
       if (this.itemsTakenList.includes(key)) {
         g.scene.remove(it.group);
         e.items.splice(i, 1);
@@ -163,6 +166,17 @@ export class SaveSystem {
     // legend encounters already resolved + Tyrion's perk
     if (g.legends) g.legends.status = s.legends || {};
     p.goldBonus = s.goldBonus || 0;
+    p.relicsFound = s.relicsFound || 0;
+
+    // rogue dragon fates (tamed ones return as guardians) + conquered kingdoms
+    e.rogues = s.rogues || {};
+    if (s.stage >= 14) e.spawnRogues();
+    for (const [kid, status] of Object.entries(s.kingdoms || {})) {
+      if (status === 'conquered' && g.kingdoms) {
+        g.kingdoms[kid] = 'conquered';
+        g.world.conquerHold(kid);
+      }
+    }
 
     // upgrades that affect visuals / world state
     if (s.stage >= 5) g.upgradeSword(s.player.hasValyrian);

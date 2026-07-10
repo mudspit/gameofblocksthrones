@@ -379,6 +379,20 @@ export class Quests {
     } else {
       opts.push({ label: 'A battle already rages — go and win it!', fn: null });
     }
+    // wars of conquest against the rival holds
+    for (const kid of ['westmarch', 'southcrest']) {
+      const kname = this.game.kingdomName(kid);
+      if (this.game.kingdoms[kid] === 'conquered') continue;
+      if (e.wars[kid]) {
+        opts.push({ label: `War rages at ${kname} — lead your host to victory!`, fn: null });
+      } else {
+        const dir = kid === 'westmarch' ? 'west' : 'south';
+        opts.push({
+          label: `⚔ Declare war on ${kname} (march ${dir}) — conquer it for plunder and tribute`,
+          fn: () => this.game.declareWar(kid),
+        });
+      }
+    }
     const text = count > 0
       ? `Your host stands ${count} strong, my lord. Steel wins fields — shall we grow it, or blood it?`
       : 'A lord needs more than his own sword. I muster levies and hire knights, for the right coin. And when your blades grow restless, I know rebels who\'d test them.';

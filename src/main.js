@@ -242,6 +242,13 @@ for (const [x, z] of wolfSpots) entities.addEnemy('wolf', x + 0.5, z + 0.5);
 const banditSpots = [[145, 152], [155, 152], [145, 160], [155, 160], [150, 149]];
 for (const [x, z] of banditSpots) entities.addEnemy('bandit', x + 0.5, z + 0.5);
 entities.addEnemy('boss', 150.5, 156.5);
+// Wildlife and brigands
+entities.addEnemy('bear', 66.5, 18.5);
+entities.addEnemy('bear', 88.5, 12.5);
+entities.addEnemy('outlaw', 110.5, 120.5);
+entities.addEnemy('outlaw', 80.5, 95.5);
+entities.addEnemy('outlaw', 125.5, 135.5);
+entities.addEnemy('giant', 12.5, 52.5);
 
 // Old Thunder waits in the courtyard from day one
 entities.spawnHorse(59.5, 99.5);
@@ -258,6 +265,23 @@ entities.addItem('kit', 38.5, 146.5);       // near the dragon lair
 entities.addItem('weapon', 152.5, 158.5, 'hammer');   // deep in the bandit camp
 entities.addItem('weapon', 134.5, 90.5, 'crossbow');  // hidden inside a village hut
 
+// gold pouches scattered across the realm
+for (const [gx, gz] of [[70, 80], [115, 60], [45, 140], [160, 100], [130, 175], [25, 105], [155, 65], [65, 115]]) {
+  entities.addItem('gold', gx + 0.5, gz + 0.5);
+}
+// treasure chests in dangerous places
+entities.addItem('treasure', 148.5, 162.5);   // bandit camp
+entities.addItem('treasure', 165.5, 35.5);    // Kingsport plaza
+entities.addItem('treasure', 14.5, 50.5);     // the Hill Giant's ground
+entities.addItem('treasure', 174.5, 168.5);   // the Verdant Wyrm's lair
+// six hidden relics with permanent rewards
+entities.addItem('relic', 166.5, 17.5, 'crown');    // Kingsport throne hall
+entities.addItem('relic', 30.5, 155.5, 'ember');    // the old dragon lair
+entities.addItem('relic', 70.5, 15.5, 'totem');     // deep northern woods
+entities.addItem('relic', 185.5, 185.5, 'ring');    // the far southeast corner
+entities.addItem('relic', 22.5, 20.5, 'tear');      // the frozen cairn hills
+entities.addItem('relic', 17.5, 73.5, 'chalice');   // inside Westmarch Hold
+
 // Stage-driven world changes (props, raids, hunts, the wild dragon)
 game.onStageChanged = (s) => {
   if (s === 9) entities.addProp('chest', 'Strange Chest', 150.5, 153.5, 0x7a5a2a);
@@ -272,7 +296,12 @@ game.onStageChanged = (s) => {
     const spots = [[75, 148], [85, 156], [95, 146]];
     for (const [x, z] of spots) entities.addEnemy('boar', x + 0.5, z + 0.5);
   }
-  if (s === 14) entities.addProp('cairn', 'Frozen Cairn', 28.5, 26.5, 0x9aa5ad);
+  if (s === 14) {
+    entities.addProp('cairn', 'Frozen Cairn', 28.5, 26.5, 0x9aa5ad);
+    // a dragonrider draws the eyes of wild wyrms
+    entities.spawnRogues();
+    ui.toast('Word spreads of rogue dragons circling the wild corners of the realm — meat tames, steel slays.');
+  }
   if (s === 16) entities.addEnemy('dragonboss', 34.5, 150.5);
   // --- Act III ---
   if (s === 20) {
@@ -322,6 +351,31 @@ game.onStageChanged = (s) => {
     }
     game.audio.play('night');
   }
+};
+
+// ---------- kingdoms & wars of conquest ----------
+game.kingdoms = { westmarch: null, southcrest: null };
+const KINGDOM_NAMES = { westmarch: 'Westmarch Hold', southcrest: 'Southcrest' };
+game.kingdomName = (id) => KINGDOM_NAMES[id];
+
+game.declareWar = (id) => {
+  if (game.kingdoms[id] === 'conquered' || entities.wars[id]) return;
+  entities.spawnGarrison(id);
+  const dir = id === 'westmarch' ? 'west' : 'south';
+  ui.toast(`WAR! The banners of ${KINGDOM_NAMES[id]} muster — march ${dir} with your host!`, 'gold');
+  game.audio.play('night');
+  saveSys.save();
+};
+
+game.onHoldConquered = (id) => {
+  game.kingdoms[id] = 'conquered';
+  world.conquerHold(id);
+  player.gold += 250;
+  ui.toast(`${KINGDOM_NAMES[id]} HAS FALLEN — your banners rise over its gate! +250 plunder`, 'gold');
+  ui.toast('The hold will pay you 50 gold in tribute at every dawn.');
+  game.audio.play('fanfare');
+  ui.updateHud();
+  saveSys.save();
 };
 
 game.onActFourComplete = () => {
@@ -896,6 +950,19 @@ function tryInteract() {
       return;
     }
     if (hd < 3.5) { mountHorse(); return; }
+    // a landed rogue wyrm can be trained with boar meat
+    const rogue = entities.enemies.find(e => e.type === 'roguedragon' && e.neutral && !e.dead &&
+      Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 7 && (e.pos.y - player.pos.y) < 3);
+    if (rogue) {
+      if (player.meat >= 3) {
+        player.meat -= 3;
+        entities.tameRogue(rogue);
+        ui.updateHud();
+      } else {
+        ui.toast(`${rogue.rogueName} eyes your empty hands — it wants 3 boar meat.`);
+      }
+      return;
+    }
     // E found nothing — nudge the player instead of silence
     if (dgn && dd < 14) { ui.toast('Move closer to Vhagrik and press E.'); return; }
   }
@@ -928,6 +995,19 @@ function updateDayNight(dt) {
   hemi.intensity = 0.25 + dayAmount * 0.5;
   scene.background.copy(SKY_NIGHT).lerp(SKY_DAY, dayAmount);
   scene.fog.color.copy(scene.background);
+  // conquered kingdoms pay tribute at every dawn
+  const wasNight = (game.dayAmount ?? 1) < 0.18;
+  const isNight = dayAmount < 0.18;
+  if (wasNight && !isNight) {
+    const conquered = Object.values(game.kingdoms).filter(v => v === 'conquered').length;
+    if (conquered > 0) {
+      const tribute = conquered * 50;
+      player.gold += tribute;
+      game.audio.play('coin');
+      ui.toast(`Dawn tribute from your conquered holds: +${tribute} gold`, 'gold');
+      ui.updateHud();
+    }
+  }
   game.dayAmount = dayAmount;
 }
 game.dayAmount = 1;
@@ -975,11 +1055,15 @@ function loop() {
       const h = entities.horse;
       const dd = dgn ? Math.hypot(dgn.pos.x - player.pos.x, dgn.pos.z - player.pos.z) : Infinity;
       const hd = (h && !h.mounted) ? Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) : Infinity;
+      const rogueNear = entities.enemies.find(e => e.type === 'roguedragon' && e.neutral && !e.dead &&
+        Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 7 && (e.pos.y - player.pos.y) < 3);
       if (hd < 3.5 && hd <= dd) {
         ui.showInteractHint('', '[E]  Ride Old Thunder');
       } else if (dd < 6.5) {
         ui.showInteractHint('', dgn.state === 'grown' ? '[E]  Ride Vhagrik' :
           (quests.stage === 13 ? '[E]  Feed Vhagrik' : '[E]  Pet Vhagrik'));
+      } else if (rogueNear) {
+        ui.showInteractHint('', `[E]  Offer 3 meat — train ${rogueNear.rogueName}`);
       } else if (hd < 3.5) {
         ui.showInteractHint('', '[E]  Ride Old Thunder');
       } else {

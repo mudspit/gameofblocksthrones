@@ -408,7 +408,34 @@ const ENEMY_DEFS = {
   // rebel warbands (army battles)
   rebel:   { hp: 75,  dmg: 12, speed: 3.7, aggro: 400, leash: 999, gold: 16,  xp: 55,  label: 'Rebel Soldier', labelColor: '#e09090' },
   warlord: { hp: 300, dmg: 22, speed: 3.4, aggro: 400, leash: 999, gold: 150, xp: 250, label: 'Rebel Warlord', labelColor: '#ff9060' },
+  // wildlife & brigands
+  bear:    { hp: 140, dmg: 16, speed: 3.6, aggro: 10, leash: 30, gold: 30,  xp: 90,  label: 'Cave Bear', labelColor: '#c8a070' },
+  outlaw:  { hp: 55,  dmg: 9,  speed: 3.4, aggro: 17, leash: 35, gold: 12,  xp: 45,  label: 'Outlaw Archer', labelColor: '#b0c090', fireRange: 16, boltKind: 'earrow', boltDmg: 10 },
+  giant:   { hp: 600, dmg: 34, speed: 2.6, aggro: 12, leash: 45, gold: 250, xp: 500, label: 'The Hill Giant', labelColor: '#e0b880' },
+  // rogue dragons — neutral until provoked; can be trained with boar meat
+  roguedragon: { hp: 480, dmg: 22, speed: 0, aggro: 48, leash: 999, gold: 300, xp: 550, label: 'Rogue Dragon', labelColor: '#b0e890', boltKind: 'efire', boltDmg: 22 },
+  // hold garrisons (wars of conquest)
+  housecarl: { hp: 85,  dmg: 13, speed: 3.6, aggro: 22, leash: 60, gold: 15,  xp: 55,  label: 'Hold Guard', labelColor: '#c0b0e0' },
+  holdlord:  { hp: 350, dmg: 24, speed: 3.3, aggro: 25, leash: 60, gold: 200, xp: 300, label: 'Lord of the Hold', labelColor: '#e0a0ff' },
 };
+
+// wild wyrms of the realm — train them with meat, or slay them for treasure
+export const ROGUE_DRAGONS = {
+  verdant: { name: 'Verdant Wyrm', body: 0x3a7a3a, wings: 0x6aa04a, lair: { x: 170, z: 170 } },
+  storm:   { name: 'Storm Wyrm',   body: 0x5a6a7a, wings: 0x8a9ab0, lair: { x: 15,  z: 120 } },
+  ash:     { name: 'Ash Wyrm',     body: 0x5a2a20, wings: 0x9a4a30, lair: { x: 60,  z: 180 } },
+};
+
+// hidden relics with permanent rewards
+const RELICS = {
+  crown:   { name: 'Crown of the First Kings', desc: '+20 max health', apply: p => { p.maxHp += 20; p.hp += 20; } },
+  ember:   { name: 'Ember Amulet',             desc: '+3 damage',      apply: p => { p.dmg += 3; } },
+  totem:   { name: 'Old Gods Totem',           desc: '+20 max health', apply: p => { p.maxHp += 20; p.hp += 20; } },
+  ring:    { name: 'Sea-Iron Ring',            desc: '+3 damage',      apply: p => { p.dmg += 3; } },
+  tear:    { name: 'Frozen Tear',              desc: '+25 max health', apply: p => { p.maxHp += 25; p.hp += 25; } },
+  chalice: { name: 'Sunburst Chalice',         desc: '+200 gold',      apply: p => { p.gold += 200; } },
+};
+export const RELIC_COUNT = Object.keys(RELICS).length;
 
 const BOSS_BARS = {
   boss: 'BANDIT KING RORGE',
@@ -420,6 +447,8 @@ const BOSS_BARS = {
   jaime: 'THE KINGSLAYER',
   nightking: 'THE NIGHT KING',
   warlord: 'REBEL WARLORD',
+  giant: 'THE HILL GIANT',
+  holdlord: 'LORD OF THE HOLD',
 };
 
 const ALLY_DEFS = {
@@ -445,7 +474,7 @@ function makeSoldier(type) {
     face: { brows: true, hair: '#4a3418' }, gear: { weapon: 'spear' } });
 }
 // enemies too large for footsoldiers to bother fighting
-const BIG_FOES = new Set(['dragonboss', 'undeaddragon', 'gate', 'iceheart', 'nightking']);
+const BIG_FOES = new Set(['dragonboss', 'undeaddragon', 'gate', 'iceheart', 'nightking', 'roguedragon']);
 
 // jagged ice growing from a cold one's shoulders and spine
 function addIceShards(group, count, color = 0x9ae8ff) {
@@ -475,6 +504,9 @@ export class Entities {
     this.soldiers = [];   // player's bought army (permadeath)
     this.battleActive = false;
     this.battleWave = 0;
+    this.rogues = {};     // rogue dragon fates: id -> 'tamed' | 'slain'
+    this.guardians = [];  // tamed wyrms circling overhead
+    this.wars = {};       // kingdom id -> war in progress
     this.dragon = null;   // player's dragon companion
     this.horse = null;
     this.time = 0;
@@ -548,6 +580,29 @@ export class Entities {
       face: { hair: '#e8d070' }, gear: { crown: true, weapon: 'sword' } });
     else if (type === 'rebel') group = makeHumanoid({ shirt: 0x6a3030, pants: 0x3a2a2a, skin: 0xc9a07a,
       face: { hair: '#2a1a10', brows: true }, gear: { weapon: 'spear', helmet: true } });
+    else if (type === 'bear') {
+      group = makeQuadruped({ bodyColor: 0x5a4028, legColor: 0x4a341e, headColor: 0x54391f,
+        bodyW: 0.95, bodyH: 0.85, bodyL: 1.5, legH: 0.55, headScale: 1.3, tail: false });
+      // hump and claws
+      const hump = box(0.8, 0.3, 0.7, 0x4a341e); hump.position.set(0, 1.42, -0.2);
+      group.add(hump);
+      for (const l of Object.values(group.userData.limbs)) {
+        for (const cx of [-0.05, 0.05]) {
+          const claw = box(0.05, 0.1, 0.14, 0xe8e0d0);
+          claw.position.set(cx, -0.55, 0.1);
+          l.add(claw);
+        }
+      }
+    }
+    else if (type === 'outlaw') group = makeHumanoid({ shirt: 0x4a5a38, pants: 0x3a3428, skin: 0xc9a07a,
+      face: { hair: '#3a3020', brows: true } });
+    else if (type === 'giant') group = makeHumanoid({ shirt: 0x6a5a44, pants: 0x54483a, skin: 0xd8c0a0, scale: 2.2,
+      face: { beard: '#4a3a28', hair: '#4a3a28', brows: true }, gear: { weapon: 'hammer' } });
+    else if (type === 'roguedragon') group = makeDragon(1.25, 0x3a7a3a, 0x6aa04a);
+    else if (type === 'housecarl') group = makeHumanoid({ shirt: 0x5a4a7a, pants: 0x3a3448, skin: 0xc9a07a,
+      face: { hair: '#2a2418', brows: true }, gear: { weapon: 'spear', helmet: true } });
+    else if (type === 'holdlord') group = makeHumanoid({ shirt: 0x7a5a9a, pants: 0x3a3448, skin: 0xd8b090, scale: 1.35,
+      face: { beard: '#4a3a2a', hair: '#4a3a2a', brows: true }, gear: { weapon: 'greatsword', helmet: true, pauldrons: 0x7a5a9a } });
     else if (type === 'warlord') group = makeHumanoid({ shirt: 0x8a2020, pants: 0x2a2020, skin: 0xd8b090, scale: 1.4,
       face: { beard: '#3a1a10', hair: '#3a1a10', brows: true }, gear: { weapon: 'greatsword', helmet: true, pauldrons: 0x8a2020 } });
     else if (type === 'gate') {
@@ -582,7 +637,7 @@ export class Entities {
     else if (LEGEND_NAMES[type]) group = makeLegend(type);
     else group = makeHumanoid({ shirt: 0x704214, pants: 0x3d3d3d, skin: 0xc99b71,
       face: { beard: '#3a2a1a', brows: true }, gear: { weapon: 'sword' } });
-    const flier = type === 'dragonboss' || type === 'undeaddragon';
+    const flier = type === 'dragonboss' || type === 'undeaddragon' || type === 'roguedragon';
     group.position.set(x, flier ? y + 13 : y, z);
     const label = makeLabel(
       type === 'gate' ? 'Kingsport Gate — dragonfire!' :
@@ -590,7 +645,11 @@ export class Entities {
     label.position.y = type === 'wolf' || type === 'boar' ? 1.3 :
       (type === 'boss' || type === 'walker' || type === 'nightking' ? 2.9 :
       (flier ? 4.5 :
-      (type === 'mountain' ? 3.4 : (type === 'gate' || type === 'iceheart' ? 3.6 : 2.2))));
+      (type === 'mountain' ? 3.4 :
+      (type === 'giant' ? 4.6 :
+      (type === 'bear' ? 2.0 :
+      (type === 'holdlord' ? 2.6 :
+      (type === 'gate' || type === 'iceheart' ? 3.6 : 2.2)))))));
     group.add(label);
     this.game.scene.add(group);
     // the realm hardens as your legend grows: enemies scale with campaign progress
@@ -714,6 +773,18 @@ export class Entities {
     }
   }
 
+  // muster a hold's garrison for a war of conquest
+  spawnGarrison(kingdomId) {
+    const hold = this.game.world.holds[kingdomId];
+    if (!hold || this.wars[kingdomId]) return;
+    this.wars[kingdomId] = true;
+    const spots = [[-4, -4], [4, -4], [-4, 2], [4, 2], [0, -6], [-6, 0], [6, 0]];
+    for (const [ox, oz] of spots) {
+      this.addEnemy('housecarl', hold.x + ox + 0.5, hold.z + oz + 0.5).kingdom = kingdomId;
+    }
+    this.addEnemy('holdlord', hold.x + 0.5, hold.z - 1.5).kingdom = kingdomId;
+  }
+
   // provoke a rebel warband to march on the keep — bigger each wave
   musterRebelHost() {
     if (this.battleActive) return;
@@ -791,13 +862,35 @@ export class Entities {
   }
 
   // ---------- world pickups ----------
-  addItem(kind, x, z, weaponId = null) {
+  addItem(kind, x, z, extra = null) {
+    const weaponId = kind === 'weapon' ? extra : null;
+    const relicId = kind === 'relic' ? extra : null;
     const group = new THREE.Group();
     let labelText, labelColor = '#a0ffb0';
     if (kind === 'bandage') {
       const b = box(0.3, 0.18, 0.3, 0xe8e4d8); b.position.y = 0.1;
       group.add(b);
       labelText = 'Bandage';
+    } else if (kind === 'gold') {
+      const b = box(0.28, 0.2, 0.28, 0xd8b030); b.position.y = 0.1;
+      group.add(b);
+      labelText = 'Gold Pouch';
+      labelColor = '#ffd769';
+    } else if (kind === 'treasure') {
+      const chest = box(0.55, 0.34, 0.4, 0x6a4a24); chest.position.y = 0.17;
+      const lid = box(0.55, 0.1, 0.4, 0x8a6534); lid.position.y = 0.4;
+      const band = box(0.57, 0.08, 0.42, 0xd8b030); band.position.y = 0.26;
+      group.add(chest, lid, band);
+      labelText = 'Treasure Chest';
+      labelColor = '#ffd769';
+    } else if (kind === 'relic') {
+      const gem = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), new THREE.MeshBasicMaterial({ color: 0xb070f0 }));
+      gem.position.y = 0.28;
+      gem.rotation.y = 0.6;
+      const base = box(0.44, 0.12, 0.44, 0x3a3040); base.position.y = 0.06;
+      group.add(gem, base);
+      labelText = RELICS[relicId] ? RELICS[relicId].name : 'Ancient Relic';
+      labelColor = '#e0b0ff';
     } else if (kind === 'kit') {
       const b = box(0.45, 0.3, 0.45, 0xf0ede4); b.position.y = 0.15;
       const c1 = box(0.3, 0.06, 0.1, 0xc03030); c1.position.y = 0.32;
@@ -824,7 +917,7 @@ export class Entities {
     label.position.y = 1.0;
     group.add(label);
     this.game.scene.add(group);
-    this.items.push({ kind, weaponId, group, pos: group.position, baseY: y + 0.3, bobSeed: Math.random() * 6 });
+    this.items.push({ kind, weaponId, relicId, group, pos: group.position, baseY: y + 0.3, bobSeed: Math.random() * 6 });
   }
 
   updateItems(dt) {
@@ -836,7 +929,7 @@ export class Entities {
       const d = Math.hypot(it.pos.x - p.pos.x, it.pos.z - p.pos.z);
       if (d < 1.8 && Math.abs(it.baseY - p.pos.y) < 3) {
         if (this.game.save) {
-          this.game.save.markItemTaken((it.weaponId || it.kind) + '@' + Math.round(it.pos.x) + ',' + Math.round(it.pos.z));
+          this.game.save.markItemTaken((it.weaponId || it.relicId || it.kind) + '@' + Math.round(it.pos.x) + ',' + Math.round(it.pos.z));
         }
         this.game.audio?.play('pickup');
         if (it.kind === 'bandage') {
@@ -845,6 +938,22 @@ export class Entities {
         } else if (it.kind === 'kit') {
           p.kits++;
           this.game.ui.toast("+1 Maester's Kit — press F to use (full heal)", 'gold');
+        } else if (it.kind === 'gold') {
+          p.gold += 30;
+          this.game.audio?.play('coin');
+          this.game.ui.toast('+30 gold', 'gold');
+        } else if (it.kind === 'treasure') {
+          p.gold += 120;
+          this.game.audio?.play('coin');
+          this.game.ui.toast('Treasure! +120 gold', 'gold');
+        } else if (it.kind === 'relic') {
+          const r = RELICS[it.relicId];
+          if (r) {
+            r.apply(p);
+            p.relicsFound = (p.relicsFound || 0) + 1;
+            this.game.audio?.play('fanfare');
+            this.game.ui.toast(`RELIC FOUND: ${r.name} — ${r.desc} (${p.relicsFound}/${RELIC_COUNT})`, 'gold');
+          }
         } else {
           this.game.grantWeapon(it.weaponId);
         }
@@ -888,6 +997,91 @@ export class Entities {
     this.dragon.label = newLabel;
   }
 
+  // ---------- rogue dragons ----------
+  // spawn the wild wyrms (once, from stage 14 on); tamed ones return as guardians
+  spawnRogues() {
+    for (const [id, def] of Object.entries(ROGUE_DRAGONS)) {
+      const status = this.rogues[id];
+      if (status === 'slain') continue;
+      if (status === 'tamed') {
+        if (!this.guardians.some(gd => gd.rogueId === id)) this.addGuardian(id);
+        continue;
+      }
+      if (this.enemies.some(e => e.rogueId === id && !e.dead)) continue;
+      const e = this.addEnemy('roguedragon', def.lair.x + 0.5, def.lair.z + 0.5);
+      // repaint with the variant's colors
+      this.game.scene.remove(e.group);
+      const group = makeDragon(1.25, def.body, def.wings);
+      group.position.copy(e.pos);
+      const label = makeLabel(def.name + ' — meat tames, steel slays', '#b0e890');
+      label.position.y = 4.5;
+      group.add(label);
+      this.game.scene.add(group);
+      e.group = group;
+      e.pos = group.position;
+      e.rogueId = id;
+      e.rogueName = def.name;
+      e.neutral = true;
+      e.lair = def.lair;
+    }
+  }
+
+  tameRogue(e) {
+    this.rogues[e.rogueId] = 'tamed';
+    this.removeEnemy(e);
+    this.addGuardian(e.rogueId);
+    this.game.ui.toast(`${e.rogueName} bows its head — TRAINED! It will guard you from the sky.`, 'gold');
+    this.game.audio?.play('roar');
+    this.game.audio?.play('fanfare');
+    this.game.saveNow?.();
+  }
+
+  addGuardian(rogueId) {
+    const def = ROGUE_DRAGONS[rogueId];
+    const p = this.game.player.pos;
+    const group = makeDragon(1.15, def.body, def.wings);
+    group.position.set(p.x + 6, p.y + 5, p.z + 6);
+    const label = makeLabel(def.name + ' (guardian)', '#b0e890');
+    label.position.y = 4.4;
+    group.add(label);
+    this.game.scene.add(group);
+    this.guardians.push({ rogueId, name: def.name, group, pos: group.position, fireCd: 2, jawT: 0 });
+  }
+
+  updateGuardians(dt, p) {
+    for (let i = 0; i < this.guardians.length; i++) {
+      const gd = this.guardians[i];
+      const ang = this.time * 0.4 + i * 2.4;
+      const tx = p.pos.x + Math.cos(ang) * 9;
+      const tz = p.pos.z + Math.sin(ang) * 9;
+      const gy = this.groundY(tx, tz);
+      const ty = gy + 5 + Math.sin(this.time * 1.3 + i) * 0.8;
+      gd.pos.x += (tx - gd.pos.x) * Math.min(1, dt * 1.6);
+      gd.pos.y += (ty - gd.pos.y) * Math.min(1, dt * 1.6);
+      gd.pos.z += (tz - gd.pos.z) * Math.min(1, dt * 1.6);
+      gd.group.rotation.y = Math.atan2(tx - gd.pos.x, tz - gd.pos.z) || gd.group.rotation.y;
+      this.flapWings(gd.group, 5 + i);
+      gd.jawT = Math.max(0, gd.jawT - dt * 2);
+      this.dragonIdle(gd.group, gd.jawT);
+      // rain fire on your enemies
+      gd.fireCd -= dt;
+      if (gd.fireCd <= 0) {
+        for (const e of this.enemies) {
+          if (e.dead || BIG_FOES.has(e.type) || e.neutral) continue;
+          if (!e.aggroed) continue;
+          if (e.pos.distanceTo(p.pos) > 24) continue;
+          gd.fireCd = 2.5;
+          gd.jawT = 1;
+          const from = gd.pos.clone(); from.y += 1.5;
+          const to = e.pos.clone(); to.y += 1;
+          const vel = to.sub(from).normalize().multiplyScalar(16);
+          this.shoot('fire', from, vel, 22, true);
+          break;
+        }
+      }
+    }
+  }
+
   nearestNpc(pos, maxDist = 3.2) {
     let best = null, bestD = maxDist;
     for (const n of this.npcs) {
@@ -928,6 +1122,11 @@ export class Entities {
     e.hp -= amount;
     e.hitFlash = 0.12;
     e.aggroed = true;
+    if (e.type === 'roguedragon' && e.neutral) {
+      e.neutral = false;
+      this.game.ui.toast(`${e.rogueName || 'The rogue dragon'} shrieks — you\'ve made an enemy of it!`);
+      this.game.audio?.play('roar');
+    }
     if (knockDir && e.type !== 'dragonboss') {
       e.pos.x += knockDir.x * 0.7;
       e.pos.z += knockDir.z * 0.7;
@@ -964,6 +1163,10 @@ export class Entities {
         p.meat++;
         this.game.ui.toast('+1 boar meat', 'gold');
       }
+      if (e.type === 'bear') {
+        p.meat += 2;
+        this.game.ui.toast('+2 meat from the bear', 'gold');
+      }
       this.game.ui.toast(`${ENEMY_DEFS[e.type].label} slain  ·  +${e.gold} gold  ·  +${e.xp} xp`, 'gold');
       this.game.quests.onKill(e.type);
       this.game.legends?.onKill(e.type);
@@ -974,6 +1177,25 @@ export class Entities {
       if (['boss', 'dragonboss', 'mountain', 'king', 'jon', 'daeneris', 'hound', 'jaime'].includes(e.type)) {
         this.addItem('kit', e.pos.x + 1, e.pos.z);
         this.addItem('bandage', e.pos.x - 1, e.pos.z);
+      }
+    }
+    // treasure spills from the mighty
+    if (['warlord', 'holdlord', 'giant'].includes(e.type)) {
+      this.addItem('treasure', e.pos.x + 1, e.pos.z + 1);
+    }
+    if (e.type === 'roguedragon') {
+      this.rogues[e.rogueId] = 'slain';
+      this.addItem('treasure', e.pos.x + 1, e.pos.z);
+      this.addItem('treasure', e.pos.x - 1, e.pos.z);
+      this.game.ui.toast(`${e.rogueName || 'The rogue dragon'} falls from the sky!`, 'gold');
+      this.game.saveNow?.();
+    }
+    // conquest: when a hold's last defender falls, the kingdom is yours
+    if (e.kingdom) {
+      const left = this.enemies.some(x => x.kingdom === e.kingdom && !x.dead);
+      if (!left) {
+        this.wars[e.kingdom] = false;
+        this.game.onHoldConquered?.(e.kingdom);
       }
     }
     // rebel-host battle: pay out when the last of them falls
@@ -1003,7 +1225,7 @@ export class Entities {
   // ---------- projectiles ----------
   shoot(kind, pos, vel, dmg, friendly) {
     let mesh;
-    if (kind === 'arrow') {
+    if (kind === 'arrow' || kind === 'earrow') {
       mesh = box(0.06, 0.06, 0.7, 0x8a6a3a);
     } else {
       mesh = new THREE.Mesh(
@@ -1022,17 +1244,17 @@ export class Entities {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const pr = this.projectiles[i];
       pr.life -= dt;
-      if (pr.kind === 'arrow') pr.vel.y -= 12 * dt;
+      if (pr.kind === 'arrow' || pr.kind === 'earrow') pr.vel.y -= 12 * dt;
       pr.pos.x += pr.vel.x * dt;
       pr.pos.y += pr.vel.y * dt;
       pr.pos.z += pr.vel.z * dt;
-      if (pr.kind === 'arrow') mesh_lookAt(pr);
+      if (pr.kind === 'arrow' || pr.kind === 'earrow') mesh_lookAt(pr);
       let hit = pr.life <= 0 || world.isSolid(Math.floor(pr.pos.x), Math.floor(pr.pos.y), Math.floor(pr.pos.z));
       if (!hit && pr.friendly) {
         for (const e of this.enemies) {
           if (e.dead) continue;
-          const r = (e.type === 'dragonboss' || e.type === 'undeaddragon' || e.type === 'gate' || e.type === 'iceheart') ? 3.0 : (e.type === 'mountain' ? 2.0 : 1.3);
-          const cy = (e.type === 'dragonboss' || e.type === 'undeaddragon') ? 1.5 : 0.9;
+          const r = (e.type === 'dragonboss' || e.type === 'undeaddragon' || e.type === 'roguedragon' || e.type === 'gate' || e.type === 'iceheart') ? 3.0 : ((e.type === 'mountain' || e.type === 'giant') ? 2.0 : 1.3);
+          const cy = (e.type === 'dragonboss' || e.type === 'undeaddragon' || e.type === 'roguedragon') ? 1.5 : 0.9;
           const dx = e.pos.x - pr.pos.x, dy = (e.pos.y + cy) - pr.pos.y, dz = e.pos.z - pr.pos.z;
           if (dx * dx + dy * dy + dz * dz < r * r) {
             this.hitEnemy(e, pr.dmg, pr.kind === 'fire' ? 'fire' : 'arrow');
@@ -1127,6 +1349,8 @@ export class Entities {
         if (Math.hypot(x - KEEP.x, z - KEEP.z) < 30) continue;
         if (Math.hypot(x - 140, z - 96) < 22) continue;  // spare the village
         if (Math.hypot(x - 170, z - 30) < 32) continue;  // and the capital
+        if (Math.hypot(x - 20, z - 76) < 18) continue;   // and the holds
+        if (Math.hypot(x - 95, z - 170) < 18) continue;
         // player-placed torches ward off the dead
         if (this.game.world.torches.some(t => Math.hypot(t.x - x, t.z - z) < 12)) continue;
         return { x, z };
@@ -1192,11 +1416,12 @@ export class Entities {
         e.group.traverse(o => { if (o.isMesh) o.material.emissive?.setHex(e.hitFlash > 0 ? 0x881111 : 0x000000); });
       }
 
-      if (e.type === 'dragonboss' || e.type === 'undeaddragon') {
+      if (e.type === 'dragonboss' || e.type === 'undeaddragon' || e.type === 'roguedragon') {
         this.updateDragonBoss(e, dt, p);
-        if (e.pos.distanceTo(p.pos) < 55) {
+        if (e.pos.distanceTo(p.pos) < 55 && !e.neutral) {
           bossFrac = e.hp / e.maxHp;
-          bossName = e.type === 'dragonboss' ? 'THE WILD DRAGON' : 'THE UNDEAD DRAGON';
+          bossName = e.type === 'dragonboss' ? 'THE WILD DRAGON' :
+            (e.type === 'undeaddragon' ? 'THE UNDEAD DRAGON' : (e.rogueName || 'ROGUE DRAGON').toUpperCase());
         }
         continue;
       }
@@ -1289,12 +1514,32 @@ export class Entities {
 
     this.updateAllies(dt, p);
     this.updateSoldiers(dt, p);
+    this.updateGuardians(dt, p);
     this.updateDragonCompanion(dt, p);
     this.updateHorse(dt);
   }
 
   updateDragonBoss(e, dt, p) {
     const lair = e.lair || { x: 34, z: 150 };
+    const dp = Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z);
+
+    // a neutral rogue wyrm lands when you come close — curious, watchful, tameable
+    if (e.neutral && dp < 14 && !p.dead) {
+      const gy = this.groundY(e.pos.x, e.pos.z);
+      e.pos.y += (gy + 0.4 - e.pos.y) * Math.min(1, dt * 2.5);
+      // shuffle toward you, stopping short
+      if (dp > 8) {
+        const dx = p.pos.x - e.pos.x, dz = p.pos.z - e.pos.z;
+        e.pos.x += (dx / dp) * 2 * dt;
+        e.pos.z += (dz / dp) * 2 * dt;
+      }
+      e.group.rotation.y = Math.atan2(p.pos.x - e.pos.x, p.pos.z - e.pos.z);
+      e.jawT = Math.max(0, (e.jawT || 0) - dt * 2);
+      this.dragonIdle(e.group, e.jawT);
+      this.flapWings(e.group, 1.5);
+      return;
+    }
+
     e.circleT += dt * 0.35;
     const gy = this.groundY(lair.x, lair.z);
     const tx = lair.x + Math.cos(e.circleT) * 20;
@@ -1307,6 +1552,7 @@ export class Entities {
     this.flapWings(e.group, 7);
     e.jawT = Math.max(0, (e.jawT || 0) - dt * 2);
     this.dragonIdle(e.group, e.jawT);
+    if (e.neutral) return; // wild but unprovoked: no fire
     // breathe fire (or ice) at the player
     e.fireCd -= dt;
     const d = e.pos.distanceTo(p.pos);
@@ -1338,7 +1584,7 @@ export class Entities {
       const aDef = ALLY_DEFS[a.id] || {};
       let foe = null, fd = 14;
       for (const e of this.enemies) {
-        if (e.dead || e.type === 'dragonboss' || e.type === 'gate') continue;
+        if (e.dead || e.type === 'dragonboss' || e.type === 'gate' || e.type === 'roguedragon' || e.type === 'undeaddragon') continue;
         if (e.type === 'walker' && aDef.source !== 'fire') continue;
         if (!e.aggroed && e.pos.distanceTo(p.pos) > 12) continue;
         const d = e.pos.distanceTo(a.pos);

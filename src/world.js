@@ -71,7 +71,9 @@ export class World {
       { x0: 39, z0: 87, x1: 65, z1: 113 },   // holdfast
       { x0: 124, z0: 80, x1: 156, z1: 112 }, // village
       { x0: 136, z0: 142, x1: 164, z1: 170 }, // bandit camp
-      { x0: 148, z0: 8, x1: 192, z1: 54 }    // Kingsport, the capital
+      { x0: 148, z0: 8, x1: 192, z1: 54 },   // Kingsport, the capital
+      { x0: 5, z0: 61, x1: 35, z1: 91 },     // Westmarch Hold
+      { x0: 80, z0: 155, x1: 110, z1: 185 }  // Southcrest
     ];
   }
 
@@ -114,6 +116,10 @@ export class World {
     this.buildCamp(140, gC, 146, 160, 166);
     const gK = this.flatten(152, 12, 188, 48);
     this.buildCapital(152, gK, 12, 188, 48);
+    // two rival kingdoms, ripe for conquest
+    this.holds = {};
+    this.buildHold('westmarch', 20, 76);
+    this.buildHold('southcrest', 95, 170);
     this.grounds = { holdfast: gH, village: gV, camp: gC, capital: gK };
     // --- trees: dense northern forest + scattered elsewhere ---
     this.plantTrees(220, 10, 10, 182, 68);   // northern woods
@@ -276,6 +282,54 @@ export class World {
     // braziers flanking the dais
     this.set(166, g + 1, 16, COBBLE); this.set(166, g + 2, 16, EMBER);
     this.set(178, g + 1, 16, COBBLE); this.set(178, g + 2, 16, EMBER);
+  }
+
+  // A rival kingdom's fort: walls, a hall, a lord's seat — and no banners
+  // until someone conquers it.
+  buildHold(name, cx, cz) {
+    const x0 = cx - 11, x1 = cx + 11, z0 = cz - 11, z1 = cz + 11;
+    const g = this.flatten(x0, z0, x1, z1);
+    // courtyard
+    this.fill(x0 + 1, g, z0 + 1, x1 - 1, g, z1 - 1, COBBLE);
+    // walls with crenellations
+    for (let x = x0; x <= x1; x++) {
+      for (const z of [z0, z1]) {
+        this.fill(x, g + 1, z, x, g + 3, z, STONE);
+        if ((x + z) % 2 === 0) this.set(x, g + 4, z, STONE);
+      }
+    }
+    for (let z = z0; z <= z1; z++) {
+      for (const x of [x0, x1]) {
+        this.fill(x, g + 1, z, x, g + 3, z, STONE);
+        if ((x + z) % 2 === 0) this.set(x, g + 4, z, STONE);
+      }
+    }
+    // south gate (open)
+    this.fill(cx - 1, g + 1, z1, cx + 1, g + 3, z1, AIR);
+    // lord's hall on the north side
+    const hx0 = cx - 5, hx1 = cx + 5, hz0 = z0 + 2, hz1 = z0 + 8;
+    this.fill(hx0, g, hz0, hx1, g, hz1, PLANK);
+    for (let x = hx0; x <= hx1; x++) for (const z of [hz0, hz1]) this.fill(x, g + 1, z, x, g + 3, z, STONE);
+    for (let z = hz0; z <= hz1; z++) for (const x of [hx0, hx1]) this.fill(x, g + 1, z, x, g + 3, z, STONE);
+    this.fill(cx - 1, g + 1, hz1, cx + 1, g + 2, hz1, AIR); // hall door
+    this.fill(hx0, g + 4, hz0, hx1, g + 4, hz1, THATCH);
+    // watch braziers by the gate
+    for (const bx of [cx - 4, cx + 4]) {
+      this.set(bx, g + 1, z1 - 2, COBBLE);
+      this.set(bx, g + 2, z1 - 2, EMBER);
+    }
+    this.holds[name] = { x: cx, z: cz, g, gateZ: z1, conquered: false };
+  }
+
+  // raise the player's banners over a conquered hold
+  conquerHold(name) {
+    const h = this.holds[name];
+    if (!h || h.conquered) return;
+    h.conquered = true;
+    this.set(h.x - 3, h.g + 4, h.gateZ, BANNER);
+    this.set(h.x + 3, h.g + 4, h.gateZ, BANNER);
+    this.updateBlock(h.x - 3, h.g + 4, h.gateZ);
+    this.updateBlock(h.x + 3, h.g + 4, h.gateZ);
   }
 
   openCityGate() {

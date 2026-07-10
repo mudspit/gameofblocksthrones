@@ -60,6 +60,7 @@ export class UI {
       ['Mudford Keep', 52, 100], ['The Village', 140, 96],
       ['Northern Woods', 96, 34], ['Bandit Camp', 150, 156],
       ['Kingsport', 170, 30],
+      ['Westmarch Hold', 20, 76], ['Southcrest', 95, 170],
     ];
     for (const [name, x, z] of labels) {
       const el = document.createElement('div');
@@ -151,6 +152,12 @@ export class UI {
       const n = this.game.entities.soldierCount();
       ar.style.display = n > 0 ? 'block' : 'none';
       document.getElementById('armyNum').textContent = n;
+    }
+    const rr = document.getElementById('relicRow');
+    if (rr) {
+      const n = p.relicsFound || 0;
+      rr.style.display = n > 0 ? 'block' : 'none';
+      document.getElementById('relicNum').textContent = n;
     }
   }
 
