@@ -120,6 +120,8 @@ export class World {
     this.holds = {};
     this.buildHold('westmarch', 20, 76);
     this.buildHold('southcrest', 95, 170);
+    // and one more, far beneath the earth
+    this.carveUnderdeep();
     this.grounds = { holdfast: gH, village: gV, camp: gC, capital: gK };
     // --- trees: dense northern forest + scattered elsewhere ---
     this.plantTrees(220, 10, 10, 182, 68);   // northern woods
@@ -326,10 +328,70 @@ export class World {
     const h = this.holds[name];
     if (!h || h.conquered) return;
     h.conquered = true;
-    this.set(h.x - 3, h.g + 4, h.gateZ, BANNER);
-    this.set(h.x + 3, h.g + 4, h.gateZ, BANNER);
-    this.updateBlock(h.x - 3, h.g + 4, h.gateZ);
-    this.updateBlock(h.x + 3, h.g + 4, h.gateZ);
+    const spots = h.spots || [[h.x - 3, h.g + 4, h.gateZ], [h.x + 3, h.g + 4, h.gateZ]];
+    for (const [bx, by, bz] of spots) {
+      this.set(bx, by, bz, BANNER);
+      this.updateBlock(bx, by, bz);
+    }
+  }
+
+  // The Underdeep: a vast cavern kingdom beneath the western hills,
+  // reached by a stair tunnel at the Undergate (12, 100).
+  carveUnderdeep() {
+    // hollow the cavern (y 2..7), leaving rock pillars, with a cobbled floor
+    for (let x = 16; x <= 52; x++) {
+      for (let z = 96; z <= 136; z++) {
+        if ((x % 9 === 0 || x % 9 === 1) && (z % 9 === 0 || z % 9 === 1)) continue; // pillars
+        for (let y = 2; y <= 7; y++) this.set(x, y, z, AIR);
+        this.set(x, 1, z, COBBLE);
+      }
+    }
+    // glowing braziers light the dark
+    for (let x = 20; x <= 48; x += 8) {
+      for (let z = 100; z <= 132; z += 8) {
+        this.set(x, 2, z, COBBLE);
+        this.set(x, 3, z, EMBER);
+      }
+    }
+    // the Deephold citadel
+    for (let x = 30; x <= 48; x++) {
+      for (const z of [108, 128]) this.fill(x, 2, z, x, 5, z, STONE);
+    }
+    for (let z = 108; z <= 128; z++) {
+      for (const x of [30, 48]) this.fill(x, 2, z, x, 5, z, STONE);
+    }
+    this.fill(30, 2, 116, 30, 4, 120, AIR); // west gate
+    this.fill(31, 1, 109, 47, 1, 127, COBBLE);
+    // the Obsidian Throne on its dais
+    this.fill(43, 2, 115, 46, 2, 121, COBBLE);
+    this.fill(45, 3, 117, 45, 5, 119, STONE);
+    this.set(45, 6, 118, BANNER);
+    this.set(44, 3, 118, COBBLE); // the seat
+    // brazier pair inside
+    for (const bz of [111, 125]) { this.set(41, 2, bz, COBBLE); this.set(41, 3, bz, EMBER); }
+    this.holds.underdeep = {
+      x: 39, z: 118, g: 1, gateZ: null, conquered: false,
+      spots: [[30, 5, 114], [30, 5, 122]],
+    };
+    // stair tunnel from the surface at the Undergate
+    const gs = this.surfaceHeight(12, 100) - 1; // top solid block
+    for (let i = 0; gs - i >= 1; i++) {
+      const x = 12 + i, fy = gs - i;
+      for (const dz of [-1, 0, 1]) {
+        for (let y = fy + 1; y <= fy + 3; y++) this.set(x, y, 100 + dz, AIR);
+        this.set(x, fy, 100 + dz, STONE); // solid step underfoot
+      }
+    }
+  }
+
+  // First standable height scanning DOWN from a given height — lets
+  // creatures walk on cavern floors instead of snapping to the surface.
+  standAt(x, z, fromY) {
+    if (!this.inBounds(x, 0, z)) return SEA + 1;
+    for (let y = Math.min(H - 1, Math.floor(fromY) + 2); y >= 0; y--) {
+      if (this.isSolid(x, y, z)) return y + 1;
+    }
+    return SEA + 1;
   }
 
   openCityGate() {

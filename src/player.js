@@ -28,6 +28,7 @@ export class Player {
     this.mount = null;                 // null | 'horse' | 'dragon'
     this.bandages = 1;                 // heals 30 (Q)
     this.kits = 0;                     // full heal (F)
+    this.charms = 0;                   // frees thralled allies (E)
   }
 
   weapon() { return this.weapons[this.weaponIdx]; }

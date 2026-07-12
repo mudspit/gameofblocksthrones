@@ -249,6 +249,10 @@ entities.addEnemy('outlaw', 110.5, 120.5);
 entities.addEnemy('outlaw', 80.5, 95.5);
 entities.addEnemy('outlaw', 125.5, 135.5);
 entities.addEnemy('giant', 12.5, 52.5);
+// shadow mages haunt the lonely places (they drop Unspell Charms)
+entities.addEnemy('mage', 60.5, 62.5);
+entities.addEnemy('mage', 150.5, 120.5);
+entities.addEnemy('mage', 100.5, 100.5);
 
 // Old Thunder waits in the courtyard from day one
 entities.spawnHorse(59.5, 99.5);
@@ -281,6 +285,16 @@ entities.addItem('relic', 70.5, 15.5, 'totem');     // deep northern woods
 entities.addItem('relic', 185.5, 185.5, 'ring');    // the far southeast corner
 entities.addItem('relic', 22.5, 20.5, 'tear');      // the frozen cairn hills
 entities.addItem('relic', 17.5, 73.5, 'chalice');   // inside Westmarch Hold
+// a few unspell charms hidden in the realm
+entities.addItem('charm', 55.5, 96.5);              // keep hall
+entities.addItem('charm', 139.5, 94.5);             // village
+entities.addItem('charm', 26.5, 24.5);              // cairn hills
+// riches of the Underdeep (underground — reachable via the Undergate)
+entities.addItem('treasure', 22.5, 100.5, null, 3);
+entities.addItem('treasure', 46.5, 130.5, null, 3);
+entities.addItem('gold', 36.5, 100.5, null, 3);
+entities.addItem('gold', 20.5, 128.5, null, 3);
+entities.addItem('charm', 44.5, 112.5, null, 3);
 
 // Stage-driven world changes (props, raids, hunts, the wild dragon)
 game.onStageChanged = (s) => {
@@ -351,11 +365,44 @@ game.onStageChanged = (s) => {
     }
     game.audio.play('night');
   }
+  // --- Act V: The King Below ---
+  if (s === 34) entities.addProp('undergate', 'The Undergate', 12.5, 100.5, 0x4a4450);
+  if (s === 35) {
+    for (const [x, z] of [[22, 104], [26, 124], [34, 100], [44, 104], [24, 114], [40, 132]]) {
+      entities.addEnemy('deepguard', x + 0.5, z + 0.5, false, 3);
+    }
+  }
+  if (s === 36) {
+    for (const [x, z] of [[28, 118], [38, 102], [46, 126]]) {
+      entities.addEnemy('deepmage', x + 0.5, z + 0.5, false, 3);
+    }
+  }
+  if (s === 37) {
+    entities.addEnemy('frostgiant', 28.5, 114.5, false, 3);
+    entities.addEnemy('frostgiant', 28.5, 121.5, false, 3);
+  }
+  if (s === 38) entities.addEnemy('deepking', 44.5, 118.5, false, 3);
+  if (s === 39) entities.addProp('obsidianthrone', 'The Obsidian Throne', 43.5, 118.5, 0x2a2430, 4);
+};
+
+game.onActFiveComplete = () => {
+  game.kingdoms.underdeep = 'conquered';
+  world.conquerHold('underdeep');
+  document.exitPointerLock();
+  game.audio.play('fanfare');
+  ui.showVictory({ level: player.level, gold: player.gold }, () => { game.tryLock(); }, {
+    title: 'KING ABOVE AND BELOW',
+    text: `The Obsidian Throne is yours, and with it the Underdeep — its braziers now burn for you, ` +
+          `and the Deephold pays 75 gold tribute at every dawn. Iron above, obsidian below. ` +
+          `Level ${player.level} · ${player.gold} gold. Act V is complete — the sea whispers of Act VI.`
+  });
+  saveSys.save();
 };
 
 // ---------- kingdoms & wars of conquest ----------
-game.kingdoms = { westmarch: null, southcrest: null };
-const KINGDOM_NAMES = { westmarch: 'Westmarch Hold', southcrest: 'Southcrest' };
+game.kingdoms = { westmarch: null, southcrest: null, underdeep: null };
+const KINGDOM_NAMES = { westmarch: 'Westmarch Hold', southcrest: 'Southcrest', underdeep: 'The Deephold' };
+const KINGDOM_TRIBUTE = { westmarch: 50, southcrest: 50, underdeep: 75 };
 game.kingdomName = (id) => KINGDOM_NAMES[id];
 
 game.declareWar = (id) => {
@@ -950,6 +997,19 @@ function tryInteract() {
       return;
     }
     if (hd < 3.5) { mountHorse(); return; }
+    // a thralled friend can be freed with an Unspell Charm
+    const thrall = entities.enemies.find(e => e.type === 'thrall' && !e.dead &&
+      Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 3.5 && Math.abs(e.pos.y - player.pos.y) < 3);
+    if (thrall) {
+      if (player.charms > 0) {
+        player.charms--;
+        entities.cureThrall(thrall);
+        ui.updateHud();
+      } else {
+        ui.toast(`You need an Unspell Charm to free ${thrall.allyName} — Elder Marta sells them, mages drop them.`);
+      }
+      return;
+    }
     // a landed rogue wyrm can be trained with boar meat
     const rogue = entities.enemies.find(e => e.type === 'roguedragon' && e.neutral && !e.dead &&
       Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 7 && (e.pos.y - player.pos.y) < 3);
@@ -999,9 +1059,11 @@ function updateDayNight(dt) {
   const wasNight = (game.dayAmount ?? 1) < 0.18;
   const isNight = dayAmount < 0.18;
   if (wasNight && !isNight) {
-    const conquered = Object.values(game.kingdoms).filter(v => v === 'conquered').length;
-    if (conquered > 0) {
-      const tribute = conquered * 50;
+    let tribute = 0;
+    for (const [kid, status] of Object.entries(game.kingdoms)) {
+      if (status === 'conquered') tribute += KINGDOM_TRIBUTE[kid] || 50;
+    }
+    if (tribute > 0) {
       player.gold += tribute;
       game.audio.play('coin');
       ui.toast(`Dawn tribute from your conquered holds: +${tribute} gold`, 'gold');
@@ -1057,7 +1119,11 @@ function loop() {
       const hd = (h && !h.mounted) ? Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) : Infinity;
       const rogueNear = entities.enemies.find(e => e.type === 'roguedragon' && e.neutral && !e.dead &&
         Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 7 && (e.pos.y - player.pos.y) < 3);
-      if (hd < 3.5 && hd <= dd) {
+      const thrallNear = entities.enemies.find(e => e.type === 'thrall' && !e.dead &&
+        Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 3.5 && Math.abs(e.pos.y - player.pos.y) < 3);
+      if (thrallNear) {
+        ui.showInteractHint('', `[E]  Free ${thrallNear.allyName} (needs Unspell Charm: ${player.charms || 0})`);
+      } else if (hd < 3.5 && hd <= dd) {
         ui.showInteractHint('', '[E]  Ride Old Thunder');
       } else if (dd < 6.5) {
         ui.showInteractHint('', dgn.state === 'grown' ? '[E]  Ride Vhagrik' :

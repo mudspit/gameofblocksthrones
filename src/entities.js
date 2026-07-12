@@ -417,6 +417,15 @@ const ENEMY_DEFS = {
   // hold garrisons (wars of conquest)
   housecarl: { hp: 85,  dmg: 13, speed: 3.6, aggro: 22, leash: 60, gold: 15,  xp: 55,  label: 'Hold Guard', labelColor: '#c0b0e0' },
   holdlord:  { hp: 350, dmg: 24, speed: 3.3, aggro: 25, leash: 60, gold: 200, xp: 300, label: 'Lord of the Hold', labelColor: '#e0a0ff' },
+  // spellcasters
+  mage:     { hp: 70, dmg: 8,  speed: 3.2, aggro: 18, leash: 40, gold: 25, xp: 80,  label: 'Shadow Mage', labelColor: '#d0a0ff', fireRange: 18, boltKind: 'spell', boltDmg: 14 },
+  deepmage: { hp: 65, dmg: 9,  speed: 3.2, aggro: 20, leash: 50, gold: 35, xp: 110, label: 'Deep Mage', labelColor: '#c890ff', fireRange: 20, boltKind: 'spell', boltDmg: 16 },
+  // the Underdeep
+  deepguard:  { hp: 70,  dmg: 13, speed: 3.6, aggro: 20, leash: 50, gold: 18,  xp: 70,  label: 'Deep Guard', labelColor: '#a0b8d0' },
+  frostgiant: { hp: 380, dmg: 30, speed: 2.7, aggro: 16, leash: 50, gold: 220, xp: 420, label: 'Frost Giant', labelColor: '#a8e0f0' },
+  deepking:   { hp: 480, dmg: 26, speed: 3.0, aggro: 22, leash: 60, gold: 800, xp: 800, label: 'The Deep King', labelColor: '#c890ff', fireRange: 18, boltKind: 'spell', boltDmg: 20 },
+  // a friend turned by the cold ones — free them, don't farm them
+  thrall: { hp: 100, dmg: 12, speed: 3.2, aggro: 16, leash: 60, gold: 0, xp: 0, label: 'Thrall', labelColor: '#8af0ff', undead: true },
 };
 
 // wild wyrms of the realm — train them with meat, or slay them for treasure
@@ -449,6 +458,8 @@ const BOSS_BARS = {
   warlord: 'REBEL WARLORD',
   giant: 'THE HILL GIANT',
   holdlord: 'LORD OF THE HOLD',
+  frostgiant: 'FROST GIANT',
+  deepking: 'THE DEEP KING',
 };
 
 const ALLY_DEFS = {
@@ -514,7 +525,17 @@ export class Entities {
     this.nightWarned = false;
   }
 
-  groundY(x, z) { return this.game.world.surfaceHeight(Math.floor(x), Math.floor(z)); }
+  // Ground height. With fromY, scans DOWN from that height so creatures in
+  // the Underdeep stand on the cavern floor instead of the surface above.
+  groundY(x, z, fromY = null) {
+    if (fromY == null) return this.game.world.surfaceHeight(Math.floor(x), Math.floor(z));
+    return this.game.world.standAt(Math.floor(x), Math.floor(z), fromY);
+  }
+
+  // is this position under the world's roof? (cavern-dwellers, spelunking players)
+  isUnderground(pos) {
+    return pos.y < this.game.world.surfaceHeight(Math.floor(pos.x), Math.floor(pos.z)) - 3;
+  }
 
   addNpc(id, name, x, z, colors) {
     const y = this.groundY(x, z);
@@ -538,8 +559,8 @@ export class Entities {
     this.npcs.push({ id: 'legend_' + legendId, legendId, name: LEGEND_NAMES[legendId], group, pos: group.position });
   }
 
-  addProp(id, name, x, z, color) {
-    const y = this.groundY(x, z);
+  addProp(id, name, x, z, color, atY = null) {
+    const y = atY != null ? this.game.world.standAt(Math.floor(x), Math.floor(z), atY) : this.groundY(x, z);
     const group = makeProp(color);
     group.position.set(x, y, z);
     const label = makeLabel(name, '#ffe9a8');
@@ -557,9 +578,9 @@ export class Entities {
     }
   }
 
-  addEnemy(type, x, z, isNight = false) {
+  addEnemy(type, x, z, isNight = false, atY = null) {
     const def = ENEMY_DEFS[type];
-    const y = this.groundY(x, z);
+    const y = atY != null ? this.game.world.standAt(Math.floor(x), Math.floor(z), atY) : this.groundY(x, z);
     let group;
     if (type === 'wolf') group = makeWolf();
     else if (type === 'boar') group = makeBoar();
@@ -603,6 +624,29 @@ export class Entities {
       face: { hair: '#2a2418', brows: true }, gear: { weapon: 'spear', helmet: true } });
     else if (type === 'holdlord') group = makeHumanoid({ shirt: 0x7a5a9a, pants: 0x3a3448, skin: 0xd8b090, scale: 1.35,
       face: { beard: '#4a3a2a', hair: '#4a3a2a', brows: true }, gear: { weapon: 'greatsword', helmet: true, pauldrons: 0x7a5a9a } });
+    else if (type === 'mage' || type === 'deepmage') {
+      group = makeHumanoid({ shirt: type === 'mage' ? 0x3a2a4a : 0x2a2440, pants: type === 'mage' ? 0x3a2a4a : 0x2a2440,
+        skin: 0xc8b0a0, face: { hair: type === 'mage' ? '#2a2035' : '#201a30', brows: true }, gear: { weapon: 'spear' } });
+      // a glowing focus crystal above the staff hand
+      const orb = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0xb060f0 }));
+      orb.position.set(0.35, 1.9, 0.15);
+      orb.rotation.y = 0.6;
+      group.add(orb);
+    }
+    else if (type === 'deepguard') group = makeHumanoid({ shirt: 0x3a4450, pants: 0x2a3038, skin: 0xb8a898,
+      face: { beard: '#3a3430', hair: '#3a3430', brows: true }, gear: { weapon: 'spear', helmet: true, pauldrons: 0x3a4450 } });
+    else if (type === 'frostgiant') {
+      group = makeHumanoid({ shirt: 0x7a94a8, pants: 0x5a7080, skin: 0xb8d8e8, scale: 2.3,
+        face: { beard: '#d8ecf4', hair: '#d8ecf4', brows: true }, gear: { weapon: 'hammer' } });
+      addIceShards(group, 4);
+    }
+    else if (type === 'deepking') {
+      group = makeHumanoid({ shirt: 0x2a2440, pants: 0x201a30, skin: 0xb8a8c8, scale: 1.4,
+        face: { beard: '#5a5070', hair: '#5a5070', brows: true }, gear: { crown: true, weapon: 'spear' } });
+      const orb = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xb060f0 }));
+      orb.position.set(0.35, 1.95, 0.15);
+      group.add(orb);
+    }
     else if (type === 'warlord') group = makeHumanoid({ shirt: 0x8a2020, pants: 0x2a2020, skin: 0xd8b090, scale: 1.4,
       face: { beard: '#3a1a10', hair: '#3a1a10', brows: true }, gear: { weapon: 'greatsword', helmet: true, pauldrons: 0x8a2020 } });
     else if (type === 'gate') {
@@ -643,13 +687,14 @@ export class Entities {
       type === 'gate' ? 'Kingsport Gate — dragonfire!' :
       (type === 'iceheart' ? 'Ice Heart — dragonfire!' : def.label), def.labelColor);
     label.position.y = type === 'wolf' || type === 'boar' ? 1.3 :
-      (type === 'boss' || type === 'walker' || type === 'nightking' ? 2.9 :
+      (type === 'boss' || type === 'walker' || type === 'nightking' || type === 'deepking' ? 2.9 :
       (flier ? 4.5 :
       (type === 'mountain' ? 3.4 :
       (type === 'giant' ? 4.6 :
+      (type === 'frostgiant' ? 4.8 :
       (type === 'bear' ? 2.0 :
       (type === 'holdlord' ? 2.6 :
-      (type === 'gate' || type === 'iceheart' ? 3.6 : 2.2)))))));
+      (type === 'gate' || type === 'iceheart' ? 3.6 : 2.2))))))));
     group.add(label);
     this.game.scene.add(group);
     // the realm hardens as your legend grows: enemies scale with campaign progress
@@ -853,7 +898,7 @@ export class Entities {
         }
         s.hp = Math.min(s.maxHp, s.hp + 1.5 * dt);
       }
-      const gy = this.groundY(s.pos.x, s.pos.z);
+      const gy = this.groundY(s.pos.x, s.pos.z, s.pos.y);
       s.pos.y += (gy - s.pos.y) * Math.min(1, dt * 12);
       s.attackAnim = Math.max(0, (s.attackAnim || 0) - dt * 3);
       this.walkAnim(s.group, moving, s.attackAnim);
@@ -862,7 +907,7 @@ export class Entities {
   }
 
   // ---------- world pickups ----------
-  addItem(kind, x, z, extra = null) {
+  addItem(kind, x, z, extra = null, atY = null) {
     const weaponId = kind === 'weapon' ? extra : null;
     const relicId = kind === 'relic' ? extra : null;
     const group = new THREE.Group();
@@ -891,6 +936,13 @@ export class Entities {
       group.add(gem, base);
       labelText = RELICS[relicId] ? RELICS[relicId].name : 'Ancient Relic';
       labelColor = '#e0b0ff';
+    } else if (kind === 'charm') {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.24), new THREE.MeshBasicMaterial({ color: 0xa0f0ff }));
+      c.position.y = 0.22;
+      c.rotation.y = 0.6;
+      group.add(c);
+      labelText = 'Unspell Charm';
+      labelColor = '#a0f0ff';
     } else if (kind === 'kit') {
       const b = box(0.45, 0.3, 0.45, 0xf0ede4); b.position.y = 0.15;
       const c1 = box(0.3, 0.06, 0.1, 0xc03030); c1.position.y = 0.32;
@@ -911,7 +963,7 @@ export class Entities {
         labelText = 'Myrish Crossbow';
       }
     }
-    const y = this.groundY(x, z);
+    const y = atY != null ? this.game.world.standAt(Math.floor(x), Math.floor(z), atY) : this.groundY(x, z);
     group.position.set(x, y + 0.3, z);
     const label = makeLabel(labelText, labelColor);
     label.position.y = 1.0;
@@ -954,6 +1006,9 @@ export class Entities {
             this.game.audio?.play('fanfare');
             this.game.ui.toast(`RELIC FOUND: ${r.name} — ${r.desc} (${p.relicsFound}/${RELIC_COUNT})`, 'gold');
           }
+        } else if (it.kind === 'charm') {
+          p.charms = (p.charms || 0) + 1;
+          this.game.ui.toast('+1 Unspell Charm — press E beside a thralled friend to free them', 'gold');
         } else {
           this.game.grantWeapon(it.weaponId);
         }
@@ -1049,8 +1104,10 @@ export class Entities {
   }
 
   updateGuardians(dt, p) {
+    const playerBelow = this.isUnderground(p.pos);
     for (let i = 0; i < this.guardians.length; i++) {
       const gd = this.guardians[i];
+      if (playerBelow) { this.flapWings(gd.group, 4 + i); this.dragonIdle(gd.group, 0); continue; }
       const ang = this.time * 0.4 + i * 2.4;
       const tx = p.pos.x + Math.cos(ang) * 9;
       const tz = p.pos.z + Math.sin(ang) * 9;
@@ -1154,6 +1211,11 @@ export class Entities {
   kill(e, reward = true) {
     e.dead = true;
     e.deathT = 0;
+    // striking down a thrall frees your friend the hard way
+    if (e.type === 'thrall') {
+      this.freeThrallByDeath(e);
+      return;
+    }
     if (reward) {
       this.game.audio?.play('coin');
       const p = this.game.player;
@@ -1180,8 +1242,12 @@ export class Entities {
       }
     }
     // treasure spills from the mighty
-    if (['warlord', 'holdlord', 'giant'].includes(e.type)) {
-      this.addItem('treasure', e.pos.x + 1, e.pos.z + 1);
+    if (['warlord', 'holdlord', 'giant', 'frostgiant', 'deepking'].includes(e.type)) {
+      this.addItem('treasure', e.pos.x + 1, e.pos.z + 1, null, e.pos.y);
+    }
+    // mages carry the charms that undo their kind of magic
+    if ((e.type === 'mage' || e.type === 'deepmage') && Math.random() < 0.65) {
+      this.addItem('charm', e.pos.x, e.pos.z, null, e.pos.y);
     }
     if (e.type === 'roguedragon') {
       this.rogues[e.rogueId] = 'slain';
@@ -1230,7 +1296,7 @@ export class Entities {
     } else {
       mesh = new THREE.Mesh(
         new THREE.SphereGeometry(kind === 'fire' ? 0.32 : 0.4, 6, 6),
-        new THREE.MeshBasicMaterial({ color: kind === 'ice' ? 0x66d8ff : (friendly ? 0xff7a20 : 0xff4a10) })
+        new THREE.MeshBasicMaterial({ color: kind === 'ice' ? 0x66d8ff : (kind === 'spell' ? 0xb060f0 : (friendly ? 0xff7a20 : 0xff4a10)) })
       );
     }
     mesh.position.copy(pos);
@@ -1301,16 +1367,73 @@ export class Entities {
     }
   }
 
-  damageAlly(a, n) {
+  damageAlly(a, n, attacker = null) {
     if (a.downed) return;
     a.hp -= n;
     if (a.hp <= 0) {
       a.hp = 0;
+      // the cold ones don't kill your friends — they TAKE them
+      if (attacker && (attacker.type === 'walker' || attacker.type === 'nightking')) {
+        this.thrallAlly(a);
+        return;
+      }
       a.downed = true;
       a.reviveT = 18;
       a.group.rotation.z = 1.3;
       this.game.ui.toast(`${ALLY_DEFS[a.id].label} is down — they will recover soon.`);
     }
+  }
+
+  // ---------- thralldom ----------
+  thrallAlly(a) {
+    const idx = this.allies.indexOf(a);
+    if (idx >= 0) this.allies.splice(idx, 1);
+    a.bar.spr.visible = false;
+    a.group.rotation.z = 0;
+    addIceShards(a.group, 3);
+    const tl = makeLabel('THRALL — an Unspell Charm frees them [E]', '#8af0ff');
+    tl.position.y = 2.8;
+    a.group.add(tl);
+    this.enemies.push({
+      type: 'thrall', group: a.group, pos: a.group.position,
+      hp: Math.round(a.maxHp * 0.9), maxHp: Math.round(a.maxHp * 0.9),
+      dmg: a.dmg, speed: 3.2, aggro: 16, leash: 60, gold: 0, xp: 0, undead: true,
+      spawnPos: a.group.position.clone(),
+      attackCd: 1.5, hitFlash: 0, dead: false, deathT: 0, aggroed: true, assault: true,
+      isNight: false, circleT: 0, fireCd: 0, fireRange: 0, boltKind: 'efire', boltDmg: 0, summonCd: 8,
+      allyId: a.id, allyName: a.name,
+    });
+    this.game.ui.toast(`${a.name} has been TURNED — their eyes burn blue! Free them with an Unspell Charm (E).`);
+    this.game.audio?.play('walker', 0);
+  }
+
+  cureThrall(e) {
+    const i = this.enemies.indexOf(e);
+    if (i >= 0) this.enemies.splice(i, 1);
+    this.game.scene.remove(e.group);
+    this.addAlly(e.allyId);
+    const a = this.allies.find(x => x.id === e.allyId);
+    if (a) {
+      a.hp = Math.round(a.maxHp * 0.5);
+      a.pos.copy(e.pos);
+    }
+    this.game.ui.toast(`The charm burns the ice away — ${e.allyName} is FREED!`, 'gold');
+    this.game.audio?.play('heal');
+    this.game.audio?.play('fanfare');
+  }
+
+  freeThrallByDeath(e) {
+    // struck down, the ice releases them — they wake wounded
+    this.addAlly(e.allyId);
+    const a = this.allies.find(x => x.id === e.allyId);
+    if (a) {
+      a.pos.set(e.pos.x + 1, e.pos.y, e.pos.z + 1);
+      a.hp = 1;
+      a.downed = true;
+      a.reviveT = 20;
+      a.group.rotation.z = 1.3;
+    }
+    this.game.ui.toast(`${e.allyName} collapses free of the ice — badly hurt, but themselves again.`);
   }
 
   // ---------- night undead ----------
@@ -1391,7 +1514,7 @@ export class Entities {
     // targets an enemy may choose from: player + standing allies + hired soldiers
     const targets = [{ pos: p.pos, hit: (n) => p.damage(n), isPlayer: true }];
     for (const a of this.allies) {
-      if (!a.downed) targets.push({ pos: a.pos, hit: (n) => this.damageAlly(a, n) });
+      if (!a.downed) targets.push({ pos: a.pos, hit: (n, atk) => this.damageAlly(a, n, atk) });
     }
     for (const s of this.soldiers) {
       if (!s.dead) targets.push({ pos: s.pos, hit: (n) => this.damageSoldier(s, n) });
@@ -1432,15 +1555,16 @@ export class Entities {
         }
         continue;
       }
-      // the Night King raises the dead as he fights
-      if (e.type === 'nightking' && e.aggroed) {
+      // summoner bosses raise reinforcements as they fight
+      if ((e.type === 'nightking' || e.type === 'deepking') && e.aggroed) {
         e.summonCd -= dt;
         if (e.summonCd <= 0) {
           e.summonCd = 8;
-          const wightsUp = this.enemies.filter(x => x.type === 'wight' && !x.dead).length;
-          if (wightsUp < 8) {
+          const minionType = e.type === 'nightking' ? 'wight' : 'deepguard';
+          const up = this.enemies.filter(x => x.type === minionType && !x.dead).length;
+          if (up < (e.type === 'nightking' ? 8 : 5)) {
             const a = Math.random() * Math.PI * 2;
-            const w = this.addEnemy('wight', e.pos.x + Math.cos(a) * 3, e.pos.z + Math.sin(a) * 3);
+            const w = this.addEnemy(minionType, e.pos.x + Math.cos(a) * 3, e.pos.z + Math.sin(a) * 3, false, e.pos.y);
             w.aggroed = true;
             w.assault = true;
             this.game.audio?.play('walker', 1500);
@@ -1475,7 +1599,7 @@ export class Entities {
         if (td < 2.0 && e.attackCd <= 0) {
           e.attackCd = 1.2;
           e.attackAnim = 1;
-          tgt.hit(e.dmg);
+          tgt.hit(e.dmg, e);
         }
         // some legends hurl fire from range
         if (e.fireRange) {
@@ -1502,7 +1626,7 @@ export class Entities {
         }
       }
 
-      const gy = this.groundY(e.pos.x, e.pos.z);
+      const gy = this.groundY(e.pos.x, e.pos.z, e.pos.y);
       e.pos.y += (gy - e.pos.y) * Math.min(1, dt * 12);
       e.attackAnim = Math.max(0, (e.attackAnim || 0) - dt * 3);
       this.walkAnim(e.group, moving, e.attackAnim);
@@ -1525,7 +1649,7 @@ export class Entities {
 
     // a neutral rogue wyrm lands when you come close — curious, watchful, tameable
     if (e.neutral && dp < 14 && !p.dead) {
-      const gy = this.groundY(e.pos.x, e.pos.z);
+      const gy = this.groundY(e.pos.x, e.pos.z, e.pos.y);
       e.pos.y += (gy + 0.4 - e.pos.y) * Math.min(1, dt * 2.5);
       // shuffle toward you, stopping short
       if (dp > 8) {
@@ -1619,7 +1743,7 @@ export class Entities {
           moving = true;
         }
       }
-      const gy = this.groundY(a.pos.x, a.pos.z);
+      const gy = this.groundY(a.pos.x, a.pos.z, a.pos.y);
       a.pos.y += (gy - a.pos.y) * Math.min(1, dt * 12);
       a.attackAnim = Math.max(0, (a.attackAnim || 0) - dt * 3);
       this.walkAnim(a.group, moving, a.attackAnim);
@@ -1630,6 +1754,12 @@ export class Entities {
   updateDragonCompanion(dt, p) {
     const d = this.dragon;
     if (!d || d.mounted) return;
+    // dragons are too big for the deep — they wait above
+    if (this.isUnderground(p.pos)) {
+      this.flapWings(d.group, 3);
+      this.dragonIdle(d.group, 0);
+      return;
+    }
     const grown = d.state === 'grown';
     const dx = p.pos.x - d.pos.x, dz = p.pos.z - d.pos.z;
     const dist = Math.hypot(dx, dz);

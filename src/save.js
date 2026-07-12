@@ -57,13 +57,15 @@ export class SaveSystem {
       royalKills: q.royalKills,
       fortBlocks: q.fortBlocks, fortTorches: q.fortTorches,
       assaultKills: q.assaultKills, heartKills: q.heartKills,
+      deepKills: q.deepKills, mageKills: q.mageKills, giantKills: q.giantKills,
       player: {
         pos: [p.pos.x, p.pos.y, p.pos.z],
         hp: p.hp, maxHp: p.maxHp, dmg: p.dmg, gold: p.gold, wood: p.wood, meat: p.meat,
         xp: p.xp, level: p.level, weapons: [...p.weapons], weaponIdx: p.weaponIdx,
-        hasValyrian: p.hasValyrian, bandages: p.bandages, kits: p.kits,
+        hasValyrian: p.hasValyrian, bandages: p.bandages, kits: p.kits, charms: p.charms || 0,
       },
       allies: e.allies.map(a => a.id),
+      thralled: e.enemies.filter(x => x.type === 'thrall' && !x.dead).map(x => x.allyId),
       soldiers: e.soldiers.filter(s => !s.dead).map(s => s.type),
       battleWave: e.battleWave || 0,
       dragon: e.dragon ? e.dragon.state : null,
@@ -114,6 +116,9 @@ export class SaveSystem {
     q.fortTorches = s.fortTorches || 0;
     q.assaultKills = s.assaultKills || 0;
     q.heartKills = s.heartKills || 0;
+    q.deepKills = s.deepKills || 0;
+    q.mageKills = s.mageKills || 0;
+    q.giantKills = s.giantKills || 0;
 
     // player
     Object.assign(p, {
@@ -121,11 +126,17 @@ export class SaveSystem {
       wood: s.player.wood, meat: s.player.meat, xp: s.player.xp, level: s.player.level,
       weapons: s.player.weapons, weaponIdx: Math.min(s.player.weaponIdx, s.player.weapons.length - 1),
       hasValyrian: s.player.hasValyrian, bandages: s.player.bandages, kits: s.player.kits,
+      charms: s.player.charms || 0,
     });
     p.pos.set(s.player.pos[0], s.player.pos[1] + 0.5, s.player.pos[2]);
 
-    // allies, hired army & dragon
+    // allies, hired army & dragon (thralled friends escaped in the chaos, wounded)
     for (const id of s.allies || []) e.addAlly(id);
+    for (const id of s.thralled || []) {
+      e.addAlly(id);
+      const a = e.allies.find(x => x.id === id);
+      if (a) { a.hp = 1; a.downed = true; a.reviveT = 20; a.group.rotation.z = 1.3; }
+    }
     e.battleWave = s.battleWave || 0;
     for (const t of s.soldiers || []) e.addSoldier(t, true);
     if (s.dragon) {

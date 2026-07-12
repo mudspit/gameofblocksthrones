@@ -14,9 +14,14 @@
 // ACT IV — 27 fortify the keep (build!) → 28 survive the assault → 29 melt 3 Ice Hearts
 //          → 30 slay the Undead Dragon → 31 END the Night King → 32 the Dawn → 33 peace
 
+// ACT V — 34 find the Undergate → 35 clear the Deep Guards → 36 destroy the Deep Mages
+//         → 37 fell the Frost Giants → 38 face the Deep King → 39 sit the Obsidian Throne
+//         → 40 King Above and Below
+
 const WOLVES_NEEDED = 4, LOGS_NEEDED = 6, RAIDERS_NEEDED = 6, MEAT_NEEDED = 3, WALKERS_NEEDED = 3,
       CHECKPOINT_NEEDED = 4, GARRISON_NEEDED = 8,
-      FORT_BLOCKS = 15, FORT_TORCHES = 5, ASSAULT_NEEDED = 14, HEARTS_NEEDED = 3;
+      FORT_BLOCKS = 15, FORT_TORCHES = 5, ASSAULT_NEEDED = 14, HEARTS_NEEDED = 3,
+      DEEPGUARDS_NEEDED = 6, DEEPMAGES_NEEDED = 3, FROSTGIANTS_NEEDED = 2;
 
 const FLAVOR = [
   'Winter is coming, m\'lord. It always is.',
@@ -39,9 +44,13 @@ export class Quests {
     this.fortTorches = 0;
     this.assaultKills = 0;
     this.heartKills = 0;
+    this.deepKills = 0;
+    this.mageKills = 0;
+    this.giantKills = 0;
   }
 
   playerTitle() {
+    if (this.stage >= 40) return 'King Above and Below';
     if (this.stage >= 33) return 'Sovereign of the Dawn';
     if (this.stage >= 26) return 'Sovereign of the Blocks';
     if (this.stage >= 17) return 'Dragonlord of Mudford';
@@ -88,7 +97,14 @@ export class Quests {
       case 30: return 'Slay the Undead Dragon circling the frozen hills.';
       case 31: return 'THE NIGHT KING marches on Mudford Keep. End him — only dragonglass, Valyrian steel, or fire can bite him.';
       case 32: return 'The dead lie still. Return to Steward Rodrik — dawn is coming.';
-      default: return 'The Long Night is broken. You are the Dawn, and the realm is yours forever.';
+      case 33: return 'Speak with Steward Rodrik — the miners bring strange word from the west.';
+      case 34: return 'Find the Undergate in the western hills and step into the dark.';
+      case 35: return `Clear the outer caverns — slay the Deep Guards. (${this.deepKills}/${DEEPGUARDS_NEEDED})`;
+      case 36: return `Destroy the Deep Mages channeling the dark. (${this.mageKills}/${DEEPMAGES_NEEDED})`;
+      case 37: return `Fell the Frost Giants at the citadel gate. (${this.giantKills}/${FROSTGIANTS_NEEDED})`;
+      case 38: return 'Face the Deep King in his citadel — he raises guards as he fights.';
+      case 39: return 'The Deephold is broken. Sit the Obsidian Throne.';
+      default: return 'You rule above and below. The realm knows no throne you have not sat. (Act VI: across the sea — someday.)';
     }
   }
 
@@ -179,6 +195,32 @@ export class Quests {
       this.game.ui.toast('The undead dragon shatters like ice! Now HE comes himself...', 'gold');
       this.setStage(31);
     }
+    // --- Act V ---
+    if (type === 'deepguard' && this.stage === 35) {
+      this.deepKills++;
+      if (this.deepKills >= DEEPGUARDS_NEEDED) {
+        this.game.ui.toast('The outer caverns fall silent... but purple light flickers deeper in.', 'gold');
+        this.setStage(36);
+      } else this.game.ui.updateTracker();
+    }
+    if (type === 'deepmage' && this.stage === 36) {
+      this.mageKills++;
+      if (this.mageKills >= DEEPMAGES_NEEDED) {
+        this.game.ui.toast('The dark channels snap! Two great shapes stir at the citadel gate...', 'gold');
+        this.setStage(37);
+      } else this.game.ui.updateTracker();
+    }
+    if (type === 'frostgiant' && this.stage === 37) {
+      this.giantKills++;
+      if (this.giantKills >= FROSTGIANTS_NEEDED) {
+        this.game.ui.toast('The giants fall! The citadel gate stands open — the Deep King waits.', 'gold');
+        this.setStage(38);
+      } else this.game.ui.updateTracker();
+    }
+    if (type === 'deepking' && this.stage === 38) {
+      this.game.ui.toast('THE DEEP KING IS SLAIN — his crown rolls across the obsidian floor.', 'gold');
+      this.setStage(39);
+    }
     if (type === 'nightking' && this.stage === 31) {
       // the army dies with its king
       for (const e of this.game.entities.enemies) {
@@ -262,6 +304,13 @@ export class Quests {
       case 29: return nearestEnemy('iceheart', { x: 96, z: 14 });
       case 30: return nearestEnemy('undeaddragon', { x: 30, z: 24 });
       case 31: return nearestEnemy('nightking', { x: 52, z: 125 });
+      case 33: return npcAt('rodrik');
+      case 34: return npcAt('undergate') || { x: 12, z: 100 };
+      case 35: return nearestEnemy('deepguard', { x: 12, z: 100 });
+      case 36: return nearestEnemy('deepmage', { x: 12, z: 100 });
+      case 37: return nearestEnemy('frostgiant', { x: 12, z: 100 });
+      case 38: return nearestEnemy('deepking', { x: 12, z: 100 });
+      case 39: return npcAt('obsidianthrone') || { x: 12, z: 100 };
       default: return null;
     }
   }
@@ -335,8 +384,22 @@ export class Quests {
         'He walks at the head of what remains — the Night King, crowned in ice, raising your fallen enemies as he comes. He is immune to common steel. Dragonglass, Winterbite, or dragonfire. End the Long Night at your own gates.');
       case 32: return M('The Dawn',
         'The dead lie still from Mudford to the Wall\'s ruin. The east is turning gold. Rodrik waits in the courtyard where this all began.');
-      default: return M('Sovereign of the Dawn',
-        'From hedge knight to the ruler who broke the Long Night. The realm is yours — its keeps, its skies, its mornings. Every game needs an ending; yours is legend.');
+      case 33: return M('Word from the West',
+        'The dawn holds, the crops grow — and the miners of the western hills refuse to go back down. They speak of carved halls beneath the stone, purple light, and drums.');
+      case 34: return M('The Undergate',
+        'There is a stair in the western hills that no man of the realm cut. It descends past the roots of the mountains. Whatever kingdom rules down there has never bent the knee.');
+      case 35: return M('The Outer Caverns',
+        'The Underdeep is real: a brazier-lit cavern kingdom under the hills. Its Deep Guards patrol the pillars. Cut through them — and mind the dark between the braziers.');
+      case 36: return M('The Deep Mages',
+        'Robed figures channel something in the cavern dark — the same craft the cold ones use to turn men. Destroy the Deep Mages, and take the Unspell Charms they carry.');
+      case 37: return M('Giants at the Gate',
+        'Two Frost Giants hold the citadel gate, hammers bigger than a horse. Bows, dragonglass, courage — bring all three. Your dragons cannot follow you down here.');
+      case 38: return M('The Deep King',
+        'He has ruled below since before your family had a name, and he raises fresh guards mid-battle with a wave of his staff. Break him in his own hall.');
+      case 39: return M('The Obsidian Throne',
+        'A second throne, older than the Iron one above. Sit it, and no ruler in memory will have held both the sky and the stone.');
+      default: return M('King Above and Below',
+        'Surface and Underdeep, iron and obsidian — every throne is yours, and the Deephold pays rich tribute at every dawn. Somewhere across the sea, Act VI is waiting.');
     }
   }
 
@@ -448,7 +511,10 @@ export class Quests {
             this.setStage(33);
             this.game.onActFourComplete();
           } });
-        case 33: return d('The realm sleeps soundly, Your Grace. First lord I ever served who ran out of wars to win.');
+        case 33: return d(
+          'Your Grace... the miners from the western hills have downed tools. They found a STAIR — cut stone, older than the realm, going down past where their lamps reach. They heard drums. And they saw purple light. There is a kingdom under your kingdom, and it has never paid you a copper.',
+          { label: 'Then I\'ll go down and introduce myself.', fn: () => this.setStage(34) });
+        case 40: return d('King above and king below — I\'ve run clean out of thrones to point you at, Your Grace. Though the sailors talk of lands across the sea...');
         default:
           if (this.stage >= 19) return d('The realm watches, Your Grace-to-be. The beacon marks the way to Kingsport.');
           if (this.stage >= 9) return d('The realm holds its breath, my lord. See to your quest — the beacon marks the way.');
@@ -479,7 +545,18 @@ export class Quests {
             this.game.ui.toast('Royal guards hold a checkpoint on the northeast road.');
             this.setStage(20);
           } });
-        default: return d('The village stands with Mudford Keep, m\'lord. Always.');
+        default:
+          if (this.stage >= 9) return d(
+            'The village stands with Mudford Keep, m\'lord. Always. And... take care in the dark. The cold ones don\'t just kill folk anymore — they TAKE them. I weave charms against it, if you\'ve the coin.',
+            { label: 'Buy an Unspell Charm — 75 gold (frees a thralled friend)', fn: () => {
+              if (p.gold < 75) { this.game.ui.toast('Not enough gold — a charm costs 75.'); return; }
+              p.gold -= 75;
+              p.charms = (p.charms || 0) + 1;
+              this.game.audio?.play('coin');
+              this.game.ui.toast('+1 Unspell Charm — press E beside a thralled friend to free them.', 'gold');
+              this.game.ui.updateHud();
+            } });
+          return d('The village stands with Mudford Keep, m\'lord. Always.');
       }
     }
 
@@ -556,6 +633,29 @@ export class Quests {
           this.game.entities.addEnemy('royal', 169.5, 19.5);
           this.game.entities.addEnemy('royal', 175.5, 19.5);
           this.game.ui.toast('King Joffron and his kingsguard attack!');
+        } });
+    }
+
+    if (npc.id === 'undergate') {
+      return d(
+        'The stair breathes cold air that smells of iron and old smoke. Far below, a faint drumbeat — and fainter still, purple light on wet stone. The steps are cut for feet like yours. An invitation, or a warning.',
+        { label: 'Descend into the Underdeep.', fn: () => {
+          this.game.entities.removeNpc('undergate');
+          this.game.ui.toast('You step into the dark. Your dragons cannot follow — but your blades can.', 'gold');
+          this.setStage(35);
+        } });
+    }
+
+    if (npc.id === 'obsidianthrone') {
+      return d(
+        'Black glass, cut a thousand years before the Iron Throne was forged, still warm from some fire far below. The Deephold\'s braziers gutter. The drums have stopped. The deep is waiting to learn who rules it.',
+        { label: 'Take your seat. (Blessing of the Deep: +25 max health, +5 damage)', fn: () => {
+          this.game.entities.removeNpc('obsidianthrone');
+          p.maxHp += 25;
+          p.hp = p.maxHp;
+          p.dmg += 5;
+          this.setStage(40);
+          this.game.onActFiveComplete();
         } });
     }
 

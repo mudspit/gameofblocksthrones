@@ -61,6 +61,7 @@ export class UI {
       ['Northern Woods', 96, 34], ['Bandit Camp', 150, 156],
       ['Kingsport', 170, 30],
       ['Westmarch Hold', 20, 76], ['Southcrest', 95, 170],
+      ['The Undergate', 12, 100],
     ];
     for (const [name, x, z] of labels) {
       const el = document.createElement('div');
@@ -158,6 +159,12 @@ export class UI {
       const n = p.relicsFound || 0;
       rr.style.display = n > 0 ? 'block' : 'none';
       document.getElementById('relicNum').textContent = n;
+    }
+    const cr = document.getElementById('charmRow');
+    if (cr) {
+      const n = p.charms || 0;
+      cr.style.display = n > 0 ? 'block' : 'none';
+      document.getElementById('charmNum').textContent = n;
     }
   }
 
