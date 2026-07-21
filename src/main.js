@@ -3,7 +3,7 @@ import { World, LOG, AIR, PLANK, TORCH, COBBLE, THATCH, W, D } from './world.js'
 import { GameAudio } from './audio.js';
 import { Legends } from './legends.js';
 import { Player } from './player.js';
-import { Entities } from './entities.js';
+import { Entities, makePlayerAvatar } from './entities.js';
 import { Quests } from './quests.js';
 import { UI } from './ui.js';
 import { SaveSystem } from './save.js';
@@ -33,9 +33,13 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 320);
+// Third-person, pulled-back camera on touch devices so the world isn't
+// crammed into your face on a small screen; classic first-person on desktop.
+const thirdPerson = coarse;
+const camera = new THREE.PerspectiveCamera(thirdPerson ? 82 : 75, window.innerWidth / window.innerHeight, 0.1, 320);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
+game.thirdPerson = thirdPerson;
 
 const hemi = new THREE.HemisphereLight(0xbfd7ff, 0x6b5a3a, 0.7);
 scene.add(hemi);
@@ -66,6 +70,11 @@ const spawnY = world.surfaceHeight(52, 105);
 const player = new Player(game, new THREE.Vector3(52.5, spawnY, 105.5));
 player.yaw = 0; // face north toward the keep hall
 game.player = player;
+
+// ---------- player avatar (third-person / mobile only) ----------
+const avatar = makePlayerAvatar();
+avatar.visible = false;
+scene.add(avatar);
 
 // ---------- weapon viewmodels ----------
 const holder = new THREE.Group();
@@ -1147,10 +1156,39 @@ function loop() {
   if (started) updateDayNight(dt);
 
   // camera follows player
-  camera.position.set(player.pos.x, player.pos.y + player.eyeH(), player.pos.z);
-  camera.rotation.set(player.pitch, player.yaw, 0);
-  // weapon swing + walking bob
   const stride = Math.hypot(player.vel.x, player.vel.z);
+  const headPos = new THREE.Vector3(player.pos.x, player.pos.y + player.eyeH(), player.pos.z);
+  camera.rotation.set(player.pitch, player.yaw, 0);
+
+  if (game.thirdPerson && started && player.mount !== 'dragon') {
+    // pull the camera back and up, behind the way you're looking
+    const back = player.mount === 'horse' ? 6.5 : 5.0;
+    const up = 1.7;
+    const dir = camDir();
+    let dist = back;
+    // don't clip through walls: raycast from the head toward the desired cam spot
+    const hit = world.raycast(headPos, dir.clone().multiplyScalar(-1), back + 0.5);
+    if (hit) dist = Math.max(1.2, Math.hypot(hit.x + 0.5 - headPos.x, hit.z + 0.5 - headPos.z) - 0.6);
+    camera.position.set(
+      headPos.x - dir.x * dist,
+      headPos.y + up - dir.y * dist * 0.5,
+      headPos.z - dir.z * dist
+    );
+    // show the player's body, facing where they move/look
+    avatar.visible = true;
+    const av = player.mount === 'horse' ? 0.7 : 0;   // sit up on the saddle
+    avatar.position.set(player.pos.x, player.pos.y + av, player.pos.z);
+    avatar.rotation.y = player.yaw + Math.PI;
+    entities.walkAnim(avatar, stride > 0.5 && !player.mount, player.swingT);
+    entities.idleAnim(avatar, 0);
+    holder.visible = false;
+  } else {
+    camera.position.copy(headPos);
+    avatar.visible = false;
+    holder.visible = player.mount !== 'dragon';
+  }
+
+  // weapon swing + walking bob (first-person viewmodel)
   holder.rotation.x = 0.35 - player.swingT * 1.3;
   holder.rotation.z = player.swingT * 0.4;
   holder.position.y = -0.28 + (stride > 0.5 && player.onGround ? Math.sin(elapsed * 11) * 0.014 : 0);

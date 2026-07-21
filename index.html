@@ -251,19 +251,27 @@
   .touch #hud { left: 50%; transform: translateX(-50%); width: 230px; bottom: 8px; padding: 8px 10px; }
   .touch #mapBtn { bottom: unset; top: 64px; right: 12px; padding: 8px 14px; }
   @media (max-width: 900px) {
-    #stats { padding: 6px 10px; font-size: 12px; line-height: 1.6; top: 8px; left: 8px; }
-    #stats .title-line { font-size: 13px; }
-    #tracker { width: 200px; padding: 8px 10px; top: 8px; right: 8px; }
-    #tracker .qtext { font-size: 12px; }
-    #compass { padding: 3px 14px; font-size: 15px; top: 8px; }
+    #stats { padding: 5px 8px; font-size: 11px; line-height: 1.5; top: 6px; left: 6px; opacity: 0.92; }
+    #stats .title-line { font-size: 12px; }
+    #tracker { width: 170px; padding: 6px 9px; top: 6px; right: 6px; opacity: 0.92; }
+    #tracker .qhead { font-size: 10px; margin-bottom: 3px; }
+    #tracker .qtext { font-size: 11px; line-height: 1.35; }
+    #compass { padding: 3px 12px; font-size: 14px; top: 6px; }
     #dialogue { bottom: 12px; padding: 12px 14px; }
     #dlgText { font-size: 14px; }
     #title h1 { font-size: 34px; letter-spacing: 6px; }
     #title h2 { font-size: 14px; letter-spacing: 3px; }
     #title p { font-size: 13px; margin: 14px 16px; }
-    #bossbar { width: 300px; top: 46px; }
-    .touch #mapBtn { top: 56px; }
-    #utilCol { top: 104px; }
+    #bossbar { width: 280px; top: 42px; }
+    .touch #mapBtn { top: 52px; }
+    #utilCol { top: 96px; }
+    /* smaller, less crowded touch buttons */
+    .touch #btnAttack { width: 74px; height: 74px; font-size: 30px; bottom: 74px; }
+    .touch #btnJump { width: 58px; height: 58px; font-size: 24px; }
+    .touch #btnPlace { width: 48px; height: 48px; font-size: 19px; }
+    .touch #btnInteract { width: 52px; height: 52px; font-size: 19px; }
+    .touch #utilCol .tbtn { width: 42px; height: 42px; font-size: 17px; }
+    .touch .tbtn { opacity: 0.85; }
   }
 
   /* ---- Mission panel ---- */

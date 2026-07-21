@@ -174,6 +174,12 @@ function makeHumanoid({ shirt, pants, skin, scale = 1, face = {}, gear = null })
   return g;
 }
 
+// The player's own body, shown in the third-person (mobile) camera.
+export function makePlayerAvatar() {
+  return makeHumanoid({ shirt: 0x3a4a7a, pants: 0x2a2a30, skin: 0xd8b090,
+    face: { hair: '#3a2a1a', brows: true }, gear: { weapon: 'sword', pauldrons: 0x4a5a8a } });
+}
+
 function makeQuadruped({ bodyColor, legColor, headColor, bodyW, bodyH, bodyL, legH, headScale = 1, tail = true, ears = true }) {
   const g = new THREE.Group();
   const body = box(bodyW, bodyH, bodyL, bodyColor);
