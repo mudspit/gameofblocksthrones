@@ -146,6 +146,8 @@
     background: #3a2c18; color: #e8dcc0; border: 1px solid #d4af37; border-radius: 3px;
   }
   #deathScreen h1 { color: #b03030; }
+  #deathButtons { display: flex; flex-direction: column; gap: 12px; align-items: center; margin-top: 10px; }
+  #deathButtons button { min-width: 260px; }
   #pauseHint { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); color: #e8dcc0; }
   #pauseMenu { padding: 26px 34px; text-align: center; min-width: 300px; }
   #pauseMsg { font-size: 20px; letter-spacing: 3px; color: #d4af37; margin-bottom: 18px; }
@@ -377,7 +379,11 @@
 
   <div id="deathScreen" class="fullscreen-overlay">
     <h1>YOU HAVE DIED</h1>
-    <p id="deathText">The ravens will carry word of your fall. You wake at Mudford Keep, lighter of purse.</p>
+    <p id="deathText">The ravens will carry word of your fall. Rise again at Mudford Keep, lighter of purse — or lay down your crown.</p>
+    <div id="deathButtons">
+      <button id="respawnBtn">RISE AT THE KEEP</button>
+      <button id="deathExitBtn">SAVE &amp; EXIT TO TITLE</button>
+    </div>
   </div>
 
   <div id="victory" class="fullscreen-overlay">

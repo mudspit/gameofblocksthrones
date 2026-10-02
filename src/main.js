@@ -478,11 +478,19 @@ let elapsed = DAY_LENGTH * 0.22; // start mid-morning
 game.onPlayerDeath = () => {
   if (player.mount) game.dismount();
   document.exitPointerLock();
-  ui.showDeath(() => {
-    player.respawn();
-    ui.updateHud();
-    saveSys.save();
-  });
+  ui.showDeath(
+    () => {   // Rise at the keep
+      player.respawn();
+      ui.updateHud();
+      saveSys.save();
+      // resume controls (re-lock on desktop; fallback/touch already free)
+      if (!usingFallback && !game.isTouch) tryLock();
+    },
+    () => {   // Save & exit to title
+      saveSys.save();
+      window.location.reload();
+    }
+  );
 };
 
 game.onActComplete = () => {

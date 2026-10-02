@@ -15,9 +15,10 @@ export class UI {
     this.mapOpen = false;
     this.missionOpen = false;
     this.menuOpen = false;
+    this.deathOpen = false;
   }
 
-  anyPanelOpen() { return this.dialogueOpen || this.mapOpen || this.missionOpen || this.menuOpen; }
+  anyPanelOpen() { return this.dialogueOpen || this.mapOpen || this.missionOpen || this.menuOpen || this.deathOpen; }
 
   showGameUI() {
     this.el.title.style.display = 'none';
@@ -234,12 +235,18 @@ export class UI {
   }
   hideBossBar() { this.el.bossbar.style.display = 'none'; }
 
-  showDeath(cb) {
+  showDeath(onRespawn, onExit) {
+    this.deathOpen = true;
     this.el.deathScreen.style.display = 'flex';
-    setTimeout(() => {
-      this.el.deathScreen.style.display = 'none';
-      cb();
-    }, 2600);
+    const respawnBtn = document.getElementById('respawnBtn');
+    const exitBtn = document.getElementById('deathExitBtn');
+    respawnBtn.onclick = () => { this.hideDeath(); onRespawn(); };
+    exitBtn.onclick = () => { onExit(); };
+  }
+
+  hideDeath() {
+    this.deathOpen = false;
+    this.el.deathScreen.style.display = 'none';
   }
 
   showVictory(stats, onContinue, custom) {
